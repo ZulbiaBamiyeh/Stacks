@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Holdfast</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="tabletop" id="tabletop">
+      <div class="vignette" aria-hidden="true"></div>
+
+      <div class="hud" id="hud">
+        <div class="hud-left">
+          <span id="hud-day">Sandbox</span>
+          <span id="hud-clock"></span>
+        </div>
+        <div class="hud-mid">
+          <span id="hud-stats"></span>
+        </div>
+        <div class="hud-right">
+          <button type="button" id="btn-pause">Pause</button>
+          <button type="button" id="btn-speed">2×</button>
+          <button type="button" id="btn-book">Recipes</button>
+        </div>
+      </div>
+      <div class="hud-seed" id="hud-seed"></div>
+
+      <div class="board" id="board"></div>
+      <aside id="book" class="book hidden"></aside>
+      <div id="battlefield" class="battlefield hidden"></div>
+      <div id="overlay" class="overlay hidden"></div>
+    </div>
+    <div class="grain" aria-hidden="true"></div>
+    <script type="module" src="js/main.js"></script>
+  </body>
+</html>
