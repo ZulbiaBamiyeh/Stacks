@@ -587,3 +587,10 @@ button {
 #preview .pv-opt { display: flex; flex-direction: column; gap: 3px; }
 #preview .pv-opt b { font-size: 12.5px; font-weight: 900; line-height: 1.15; margin-top: 4px; }
 #preview .pv-opt span { font-size: 11.5px; line-height: 1.25; color: var(--ink-soft); }
+/* Shrine hover */
+.shr-list { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 8px; }
+.shr-row { display: grid; grid-template-columns: 20px 1fr; column-gap: 6px; align-items: center; font-size: 13px; }
+.shr-row.none { opacity: 0.6; }
+.shr-row .ico { width: 18px; height: 18px; }
+.shr-row .shr-steps { grid-column: 2; font-size: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+.shr-row .ok { color: #3f8f3a; font-weight: 900; }

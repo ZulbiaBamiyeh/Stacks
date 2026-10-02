@@ -75,3 +75,17 @@ test('coin trinkets pay out after a fight', () => {
   assert.ok(r.lines.some(([l, n]) => l === 'Trinkets' && n === 2));
   assert.equal(s.gold, g + r.total);
 });
+
+test('opening a track binds the shrine and seals the others', () => {
+  const s = run.newRun(5);
+  s.table = [];
+  const feed = (id) => { const c = run.makeInst(s, id); s.table.push(c); return run.feed(s, c.uid); };
+  for (let i = 0; i < 3; i++) assert.ok(feed('bone').ok); // can sample before committing
+  for (let i = 0; i < 4; i++) assert.ok(feed('ice').ok);
+  const r = feed('ice');
+  assert.equal(r.unlocked, 'frost');
+  assert.equal(s.bound, 'frost');
+  assert.equal(feed('bone').ok, false);
+  assert.ok(feed('ice').ok);
+  assert.ok(run.availablePacks(s).includes('frost'));
+});

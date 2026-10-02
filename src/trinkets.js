@@ -78,7 +78,7 @@ T('brazierBrooch', 'ember', 3, 'Brazier Brooch', 'You apply 30% more burn.', { p
 T('coalHeart', 'ember', 3, 'Coal Heart', 'Your burn fades slower: it loses a third each tick instead of half.', { burnDecay: 3 });
 T('cinderFang', 'ember', 3, 'Cinder Fang', 'Your crits apply 3 burn.', { onCrit: [{ k: 'burn', n: 3 }], critChance: 0.04 });
 T('salamanderScale', 'ember', 4, 'Salamander Scale', 'Heal 30% of the burn damage you deal.', { leech: { burn: 0.3 } });
-T('smolderingCrown', 'ember', 4, 'Smoldering Crown', 'Your burn ticks 40% faster.', { burnRate: 0.4 });
+T('smolderingCrown', 'ember', 4, 'Smoldering Crown', 'Your burn ticks 30% faster and each tick deals 30% more.', { burnRate: 0.3, burnTickPct: 0.3 });
 T('pyreLantern', 'ember', 4, 'Pyre Lantern', 'Every 3s, apply 3 burn.', { every: [[3, { k: 'burn', n: 3 }]] });
 T('volcanoHeart', 'ember', 5, 'Heart of the Volcano', 'Your burn never fades, but you apply 15% less of it.', { burnDecay: Infinity, pct: { burn: -0.15 } });
 T('ifritsBrand', 'ember', 5, "Ifrit's Brand", 'Your attacks also apply burn equal to 30% of their damage.', { dmgBurn: 0.3 });
@@ -120,7 +120,7 @@ T('jadestoneSnake', 'mushroom', 3, 'Jadestone Snake', 'You apply 25% more poison
 T('fungalRing', 'mushroom', 3, 'Fungal Ring', 'Every 7s, apply 2 poison.', { every: [[7, { k: 'poison', n: 2 }]] });
 T('sicklyCenser', 'mushroom', 3, 'Sickly Censer', 'Enemy heals are 40% weaker. Every 8s, apply 1 poison.', { enemyHealCut: 0.4, every: [[8, { k: 'poison', n: 1 }]] });
 T('plagueMask', 'mushroom', 4, 'Plague Mask', 'Your poison ticks 50% faster.', { poisonRate: 0.5 });
-T('witchsCauldron', 'mushroom', 4, "Witch's Cauldron", 'Whenever you heal, apply poison equal to 25% of it.', { onHealPoison: 0.25 });
+T('witchsCauldron', 'mushroom', 4, "Witch's Cauldron", 'Whenever you heal, apply poison equal to 10% of it (at least 1).', { onHealPoison: 0.1 });
 T('rotLantern', 'mushroom', 4, 'Rot Lantern', 'Your poison ticks deal 35% more.', { poisonTickPct: 0.35 });
 T('blightHeart', 'mushroom', 5, 'Heart of the Blight', 'The enemy starts with 3 poison. Each time your poison ticks, it grows by 20% (at least 1).', { startEnemy: { poison: 3 }, poisonGrow: 0.2 });
 T('mycelialCrown', 'mushroom', 5, 'Mycelial Crown', 'Heal 35% of the poison damage you deal. Your poison actions apply +1.', { leech: { poison: 0.35 }, add: { poison: 1 } });
@@ -129,10 +129,10 @@ T('venomChalice', 'mushroom', 5, 'Venom Chalice', 'Your poison actions apply +1.
 // ---------------------------------------------------------------- feather: speed
 T('quillCharm', 'feather', 2, 'Quill Charm', 'Your units act 6% faster.', { haste: 0.06 });
 T('gullFeather', 'feather', 2, 'Gull Feather', 'Your units start each fight 30% charged.', { charge: 0.3 });
-T('swiftPlume', 'feather', 2, 'Swift Plume', 'Your attacks deal +3 damage against a shielded enemy.', { vsShieldAdd: 3 });
+T('swiftPlume', 'feather', 2, 'Swift Plume', 'Your units act 4% faster, and your attacks deal +2 against a shielded enemy.', { haste: 0.04, vsShieldAdd: 2 });
 T('falconHood', 'feather', 3, 'Falcon Hood', 'Your units act 9% faster.', { haste: 0.09 });
 T('windChime', 'feather', 3, 'Wind Chime', "Every 4s, a random unit's cooldown jumps ahead 0.6s.", { every: [[4, { k: 'charge', s: 0.6 }]] });
-T('hawkTalon', 'feather', 3, 'Hawk Talon', 'Your attacks deal +1 damage, and half of it ignores shield.', { add: { dmg: 1 }, pierceFrac: 0.5 });
+T('hawkTalon', 'feather', 3, 'Hawk Talon', 'Half of your attack damage ignores shield, and your attacks deal +1 against a shielded enemy.', { pierceFrac: 0.5, vsShieldAdd: 1 });
 T('rocsPinion', 'feather', 4, "Roc's Pinion", 'Your units start each fight 60% charged.', { charge: 0.6 });
 T('tempestFan', 'feather', 4, 'Tempest Fan', 'Freezes on your units are half as long. Your units act 8% faster.', { freezeResist: 0.5, haste: 0.08 });
 T('stormKite', 'feather', 4, 'Storm Kite', 'Whenever one of your units acts, the unit to its right jumps ahead 0.4s.', { chain: 0.4 });
@@ -148,7 +148,7 @@ T('glacialLens', 'crystal', 3, 'Glacial Lens', 'Your freezes last 50% longer.', 
 T('hoarfrostCharm', 'crystal', 3, 'Hoarfrost Charm', 'Every 4s, freeze a random enemy unit for 1s.', { every: [[4, { k: 'freeze', dur: 1 }]] });
 T('shatterGem', 'crystal', 3, 'Shatter Gem', 'Your attacks deal 35% more while any enemy unit is frozen.', { frozenVuln: 0.35 });
 T('seersOrb', 'crystal', 4, "Seer's Orb", '+12% rare chance when combining. Start each fight with 4 Luck.', { rareOdds: 12, start: { luck: 4 } });
-T('iceCrown', 'crystal', 4, 'Ice Crown', 'Whenever you freeze a unit, apply 2 Cold.', { onFreeze: [{ k: 'cold', n: 2 }] });
+T('iceCrown', 'crystal', 4, 'Ice Crown', 'Whenever you freeze a unit, apply 1 Cold.', { onFreeze: [{ k: 'cold', n: 1 }] });
 T('frozenHeart', 'crystal', 4, 'Frozen Heart', "Your units can't be frozen. Start with 20 shield.", { freezeImmune: true, start: { shield: 20 } });
 T('wintersGrasp', 'crystal', 5, "Winter's Grasp", 'Your freezes last 30% longer and each one deals 6 damage.', { pct: { freeze: 0.3 }, onFreeze: [{ k: 'dmg', n: 6 }] });
 T('starfallPrism', 'crystal', 5, 'Starfall Prism', 'Every 4s, a random unit of yours casts its action again.', { every: [[4, { k: 'recast' }]] });
@@ -158,7 +158,7 @@ T('mirrorOfEternity', 'crystal', 5, 'Mirror of Eternity', 'Every 4th action of y
 T('moonCharm', 'moonstone', 2, 'Moon Charm', 'Below half HP, your units act 10% faster.', { lowHaste: 0.1 });
 T('nightBloom', 'moonstone', 2, 'Night Bloom', 'The first time you drop below half HP, gain 15 shield.', { lastStand: [[0.5, { k: 'shield', n: 15 }]] });
 T('wolfsbaneSprig', 'moonstone', 2, 'Wolfsbane Sprig', 'Your wolves deal +1 damage.', { kinAdd: [{ kin: 'wolf', k: 'dmg', n: 1 }] });
-T('lunarTear', 'moonstone', 3, 'Lunar Tear', 'Your attacks deal +1 damage per 30 HP you are missing (max +3).', { missingDmg: 30, missingDmgMax: 3 });
+T('lunarTear', 'moonstone', 3, 'Lunar Tear', 'Your attacks deal +1 damage per 50 HP you are missing (max +2).', { missingDmg: 50, missingDmgMax: 2 });
 T('eclipsePendant', 'moonstone', 3, 'Eclipse Pendant', 'The first time you drop below 40% HP, heal 25.', { lastStand: [[0.4, { k: 'heal', n: 25 }]] });
 T('howlingTotem', 'moonstone', 3, 'Howling Totem', 'Your creatures act 12% faster.', { creatureHaste: 0.12 });
 T('bloodMoonIdol', 'moonstone', 4, 'Blood Moon Idol', 'Below half HP, your attacks deal 45% more.', { lowDmgPct: 0.45 });
@@ -169,16 +169,16 @@ T('nightmareLantern', 'moonstone', 5, 'Nightmare Lantern', 'At 75%, 50% and 25% 
 T('selenesMirror', 'moonstone', 5, "Selene's Mirror", 'Below half HP, 45% of the attack damage you take is dealt back.', { lowReflect: 0.45 });
 
 // ---------------------------------------------------------------- ice: Cold and shatter
-T('snowflakeBrooch', 'ice', 2, 'Snowflake Brooch', 'The enemy starts each fight with 5 Cold.', { startEnemy: { cold: 5 } });
-T('icicleCharm', 'ice', 2, 'Icicle Charm', 'Your attacks deal 15% more while any enemy unit is frozen.', { frozenVuln: 0.15 });
+T('snowflakeBrooch', 'ice', 2, 'Snowflake Brooch', 'The enemy starts each fight with 3 Cold.', { startEnemy: { cold: 3 } });
+T('icicleCharm', 'ice', 2, 'Icicle Charm', 'Every 7s, freeze a random enemy unit for 0.5s. Your attacks deal 15% more while any enemy unit is frozen.', { every: [[7, { k: 'freeze', dur: 0.5 }]], frozenVuln: 0.15 });
 T('frostWard', 'ice', 2, 'Frost Ward', 'Start with 10 shield. Freezes on your units are 25% shorter.', { start: { shield: 10 }, freezeResist: 0.25 });
-T('chillwindHorn', 'ice', 3, 'Chillwind Horn', 'Every 4s, apply 2 Cold.', { every: [[4, { k: 'cold', n: 2 }]] });
-T('rimecrustMail', 'ice', 3, 'Rimecrust Mail', 'Start with 15 shield. The enemy starts with 3 Cold.', { start: { shield: 15 }, startEnemy: { cold: 3 } });
-T('permafrostSeal', 'ice', 3, 'Permafrost Seal', 'The enemy starts with 4 Cold, and Cold can slow them by up to 75% (normally 50%).', { startEnemy: { cold: 4 }, coldCap: 0.25 });
+T('chillwindHorn', 'ice', 3, 'Chillwind Horn', 'Every 6s, apply 2 Cold.', { every: [[6, { k: 'cold', n: 2 }]] });
+T('rimecrustMail', 'ice', 3, 'Rimecrust Mail', 'Start with 10 shield. The enemy starts with 2 Cold.', { start: { shield: 10 }, startEnemy: { cold: 2 } });
+T('permafrostSeal', 'ice', 3, 'Permafrost Seal', 'The enemy starts with 2 Cold, and Cold can slow them by up to 75% (normally 50%).', { startEnemy: { cold: 2 }, coldCap: 0.25 });
 T('glacialHeart', 'ice', 4, 'Glacial Heart', "Start with 15 shield. Cold can't slow your units.", { start: { shield: 15 }, coldImmune: true });
 T('avalancheDrum', 'ice', 4, 'Avalanche Drum', 'Every 6s, deal damage equal to the Cold on the enemy.', { every: [[6, { k: 'detonateCold' }]] });
 T('frostbiteFang', 'ice', 4, 'Frostbite Fang', 'Your attacks deal +1 damage per 4 Cold on the enemy (max +4).', { coldDmg: 4, coldDmgMax: 4 });
-T('heartOfWinter', 'ice', 5, 'Heart of Winter', 'The enemy starts with 10 Cold and gains 2 more every 3s.', { startEnemy: { cold: 10 }, every: [[3, { k: 'cold', n: 2 }]] });
+T('heartOfWinter', 'ice', 5, 'Heart of Winter', 'The enemy starts with 6 Cold and gains 1 more every 3s.', { startEnemy: { cold: 6 }, every: [[3, { k: 'cold', n: 1 }]] });
 T('absoluteZero', 'ice', 5, 'Absolute Zero', 'Every 5s, if the enemy has 15+ Cold, freeze every enemy unit for 1s. Every 4s, apply 2 Cold.', { every: [[5, { k: 'freezeAll', dur: 1, minCold: 15 }], [4, { k: 'cold', n: 2 }]] });
 T('shatterglassCrown', 'ice', 5, 'Shatterglass Crown', 'Your attacks deal 40% more while any enemy unit is frozen, and each freeze deals 4 damage.', { frozenVuln: 0.4, onFreeze: [{ k: 'dmg', n: 4 }] });
 

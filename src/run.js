@@ -87,6 +87,7 @@ function remove(s, uid) {
 export function availablePacks(s) {
   const list = [...BASE_PACKS];
   for (const t of TRACKS) {
+    if (s.bound && s.bound !== t.id) continue;
     if (s.fed[t.id] >= TRACK_STEPS[0]) list.push(t.packs[0]);
     if (s.fed[t.id] >= TRACK_STEPS[1]) list.push(t.packs[1]);
   }
@@ -176,13 +177,17 @@ export function feed(s, uid) {
   const f = find(s, uid);
   if (!f) return { ok: false };
   const track = feedTrack(f.inst.id);
-  if (!track) return { ok: false, reason: 'The shrine only takes Ember, Bone, Berry, Coin or Stone' };
+  if (!track) return { ok: false, reason: 'The shrine only takes Ember, Bone, Berry, Coin, Stone or Ice' };
+  if (s.bound && s.bound !== track.id) return { ok: false, reason: `The shrine is bound to ${TRACKS.find((t) => t.id === s.bound).name}. Other tracks are sealed this run.` };
   remove(s, uid);
   s.fed[track.id] += stackOf(f.inst);
   const n = s.fed[track.id];
   const before = n - stackOf(f.inst);
   const crossed = (step) => before < step && n >= step;
   const unlocked = crossed(TRACK_STEPS[1]) ? track.packs[1] : crossed(TRACK_STEPS[0]) ? track.packs[0] : null;
+  // Opening a track binds the shrine to it for the rest of the run, and the
+  // land takes on its look.
+  if (unlocked) { s.theme = track.id; s.bound = track.id; }
   return { ok: true, track, count: n, unlocked };
 }
 

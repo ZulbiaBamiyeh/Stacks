@@ -347,7 +347,9 @@ export function createUI() {
         <li><b>Combine</b>: drag a card onto another. If a recipe exists they merge for gold: 1 for a tier II result, 3 for tier III, 5 for tier IV or a rare. A ★ means a rare can drop.</li>
         <li><b>Eaters</b> (cards with an "ate 0/5" tag) grow when you drop their food on them, and evolve after enough meals.</li>
         <li><b>Wall</b>: drag units into the slots at the bottom. Only wall units fight. Slots grow on days 4 and 7.</li>
-        <li><b>Market</b> on the right sells singles. <b>Sell</b> cards top-left. Feed Ember, Bone, Berry, Coin or Stone to the <b>Shrine</b> to unlock track packs.</li>
+        <li><b>Market</b> on the right sells singles. <b>Sell</b> cards top-left.</li>
+        <li><b>Shrine</b>: feed Ember, Bone, Berry, Coin, Stone or Ice to open a themed track of packs. The first track you open <b>binds</b> the shrine for the run and seals the rest, and the land changes to match.</li>
+        <li><b>Trinkets</b>: stack 2–5 of the same resource into a bundle, then drop it on the velvet rack to forge a random trinket of that size (bronze ×2 up to starmetal ×5). Up to 5 trinkets work in every fight.</li>
       </ul>
       <h4>Fights</h4>
       <p>Units act on their own cooldowns. Shield absorbs damage. Burn deals its stacks every 1.5s, then halves. Poison deals its stacks every 3s and never fades; healing doesn't remove either. Freeze pauses a unit. From 45s, sudden death hurts both sides more and more.</p>

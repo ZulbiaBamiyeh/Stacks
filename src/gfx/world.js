@@ -120,6 +120,9 @@ export function createWorld(container) {
     const grass = tex(grassCanvas, { repeat: [w / 6, d / 6], aniso: anisotropy });
     const side = new THREE.MeshLambertMaterial({ color: '#5f7d55' });
     const top = new THREE.MeshLambertMaterial({ map: grass });
+    g.userData.top = top;
+    g.userData.side = side;
+    g.userData.repeat = [w / 6, d / 6];
     const slab = new THREE.Mesh(new THREE.BoxGeometry(w, 0.3, d), [side, side, top, side, side, side]);
     slab.position.y = -0.15;
     slab.receiveShadow = true;
@@ -138,9 +141,27 @@ export function createWorld(container) {
   }
 
   const B = L.board;
-  makeBoard(0, 0, B.x1 - B.x0, B.z1 - B.z0, D.drawGrass());
+  const home = makeBoard(0, 0, B.x1 - B.x0, B.z1 - B.z0, D.drawGrass());
   const A = L.arena;
   const arena = makeBoard(0, A.cz, B.x1 - B.x0, A.z1 - A.z0, D.drawGrass({ base: '#c6c98f', tuft: 'rgba(110,105,55,0.4)', seed: 8 }));
+
+  // Repaint the land for a theme (meadow, flame, tomb, grove, caravan, forge, frost).
+  let theme = 'meadow';
+  function setTheme(next) {
+    if (!D.THEMES[next] || next === theme) return;
+    theme = next;
+    const swap = (mat, cv, repeat) => {
+      const old = mat.map;
+      mat.map = tex(cv, { repeat, aniso: anisotropy });
+      mat.needsUpdate = true;
+      old?.dispose();
+    };
+    swap(ground.material, D.drawThemeGround(next), [16, 16]);
+    swap(home.userData.top, D.drawThemeBoard(next), home.userData.repeat);
+    swap(arena.userData.top, D.drawThemeBoard(next, { arena: true }), arena.userData.repeat);
+    home.userData.side.color.set(D.THEMES[next].side);
+    arena.userData.side.color.set(D.THEMES[next].side);
+  }
 
   // Arena midline: a faint dashed ink line between the two walls.
   const midCv = D.canvas(2048, 64);
@@ -380,7 +401,7 @@ export function createWorld(container) {
   return {
     THREE, renderer, scene, camera, view, anisotropy, arena,
     towers: { home: homeTower, player: arenaPlayerTower, enemy: arenaEnemyTower },
-    frame, resize, updateCamera, pointerRay, groundPoint, toScreen, makeTile, makeDecal, outlined,
+    frame, resize, updateCamera, pointerRay, groundPoint, toScreen, makeTile, makeDecal, outlined, setTheme,
     render: () => renderer.render(scene, camera),
   };
 }
