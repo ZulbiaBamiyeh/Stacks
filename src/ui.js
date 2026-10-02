@@ -223,24 +223,23 @@ export function createUI() {
       <div class="actions"><button class="big-btn" data-close>Got it</button></div>`);
   }
 
-  function menu(s, { canRestart = true, muted = false } = {}) {
+  function menu(s, { muted = false, midFight = false } = {}) {
     return modal(`
       <h2>Menu</h2>
       <p class="muted">Day ${s.day} · ${s.wins} wins, ${s.losses} losses · ${s.gold} gold</p>
       <div class="menu-list">
         <button class="big-btn" data-close type="button">Resume</button>
-        <button class="big-btn red" data-newgame type="button" ${canRestart ? '' : 'disabled'}>New game</button>
-        ${canRestart ? '' : '<p class="muted small">Finish this fight first.</p>'}
+        <button class="big-btn red" data-newgame type="button">New game</button>
         <button class="big-btn ghost-dark" data-help type="button">How to play</button>
         <button class="big-btn ghost-dark" data-ideas type="button">Ideas</button>
         <button class="big-btn ghost-dark" data-sound type="button">Sound: ${muted ? 'off' : 'on'}</button>
       </div>`);
   }
 
-  function confirmNewGame(s) {
+  function confirmNewGame(s, { midFight = false } = {}) {
     return modal(`
       <h2>Start a new game?</h2>
-      <p>Your current run (day ${s.day}, ${s.wins}–${s.losses}) will be lost. Recipes you've discovered are kept.</p>
+      <p>Your current run (day ${s.day}, ${s.wins}–${s.losses}) will be lost${midFight ? ', and this fight ends now' : ''}. Recipes you've discovered are kept.</p>
       <div class="actions"><button class="big-btn ghost" data-close type="button">Cancel</button><button class="big-btn red" data-confirm-new type="button">Start new game</button></div>`);
   }
 

@@ -800,6 +800,7 @@ function updateCombos(dt) {
 
 let B = null;
 let ghost = null;
+let fightToken = 0;
 let speed = 1;
 let acc = 0;
 let result = null;
@@ -837,7 +838,9 @@ async function startFight() {
   ui.info(null);
   hover = null;
   const snap = R.snapshot(S, 'You');
+  const token = fightToken;
   ghost = await fetchGhost({ day: S.day, wins: S.wins, losses: S.losses, runSeed: S.seed, seed: (S.seed ^ (S.day * 2654435761)) >>> 0 });
+  if (token !== fightToken) return; // a new game started while the ghost loaded
   submitGhost(snap, S.seed);
   B = createBattle({ left: snap, right: ghost, seed: (S.seed * 31 + S.day) >>> 0 });
   acc = 0;
@@ -1098,8 +1101,24 @@ function showRunOver() {
   el.querySelector('[data-new]').addEventListener('click', () => newRun());
 }
 
+// Stop a fight in progress (used when starting a new game mid-fight).
+function abortBattle() {
+  fightToken += 1;
+  timers.length = 0;
+  ui.hideBanner();
+  ui.battleEnd();
+  fortHud[0].hide();
+  fortHud[1].hide();
+  for (const v of bv[1]) if (v) v.dispose(scene);
+  bv = [[], []];
+  B = null;
+  fx.clear();
+  view.zoom = 1;
+}
+
 function newRun() {
   ui.modal(null);
+  if (mode !== 'shop' && mode !== 'over') abortBattle();
   for (const v of views.values()) v.dispose(scene);
   for (const v of packViews.values()) v.dispose(scene);
   for (const v of marketViews) if (v) v.dispose(scene);
@@ -1124,14 +1143,14 @@ ui.setSound(sfx.muted);
 $('btn-sound').addEventListener('click', () => ui.setSound(sfx.toggle()));
 function bindModal(el) {
   el?.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => ui.modal(null)));
-  el?.querySelector('[data-newgame]')?.addEventListener('click', () => bindModal(ui.confirmNewGame(S)));
+  el?.querySelector('[data-newgame]')?.addEventListener('click', () => bindModal(ui.confirmNewGame(S, { midFight: mode !== 'shop' && mode !== 'over' })));
   el?.querySelector('[data-confirm-new]')?.addEventListener('click', () => newRun());
   el?.querySelector('[data-help]')?.addEventListener('click', () => bindModal(ui.help()));
   el?.querySelector('[data-ideas]')?.addEventListener('click', () => bindModal(ui.ideas(codex)));
   el?.querySelector('[data-sound]')?.addEventListener('click', () => { ui.setSound(sfx.toggle()); openMenu(); });
 }
 // New game is only offered between fights, so a battle never gets cut off midway.
-const openMenu = () => bindModal(ui.menu(S, { canRestart: mode === 'shop' || mode === 'over', muted: sfx.muted }));
+const openMenu = () => bindModal(ui.menu(S, { muted: sfx.muted, midFight: mode !== 'shop' && mode !== 'over' }));
 $('btn-menu').addEventListener('click', openMenu);
 $('btn-ideas').addEventListener('click', () => bindModal(ui.ideas(codex)));
 $('btn-help').addEventListener('click', () => bindModal(ui.help()));
