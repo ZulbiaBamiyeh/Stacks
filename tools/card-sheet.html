@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Stackbrawl card sheet</title>
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  html, body { overflow: auto; touch-action: auto; user-select: text; }
+  body { padding: 20px; background: #a8cd99; }
+  h1 { font-weight: 900; font-size: 28px; margin-bottom: 4px; }
+  h2 { font-weight: 900; font-size: 18px; margin: 22px 0 8px; }
+  p { font-weight: 700; max-width: 760px; margin-bottom: 6px; }
+  code { background: rgba(255,255,255,.5); padding: 1px 5px; border-radius: 5px; }
+  .grid { display: flex; flex-wrap: wrap; gap: 10px; }
+  figure { width: 150px; }
+  figure canvas { width: 150px; display: block; filter: drop-shadow(3px 4px 0 rgba(42,36,28,.25)); }
+  figcaption { font-size: 12px; font-weight: 800; margin-top: 3px; opacity: .7; }
+  figcaption b { opacity: 1; }
+</style>
+</head>
+<body>
+<h1>Card sheet</h1>
+<p>Every card as it renders in game. Cards with art from <code>art/cards/manifest.json</code> show it; the rest show placeholder doodles. Art is drawn into the rounded square window (cover-fit), so square images work best.</p>
+<div id="out"></div>
+<script type="importmap">{ "imports": { "three": "../vendor/three/three.module.js" } }</script>
+<script type="module">
+import * as D from '../src/gfx/draw.js';
+import { CARDS, PACKS } from '../src/content.js';
+await Promise.all(['900', '800', '700'].map((w) => document.fonts.load(`${w} 40px Nunito`)));
+let manifest = {};
+try { manifest = await (await fetch('../art/cards/manifest.json', { cache: 'no-cache' })).json(); } catch {}
+const art = {};
+await Promise.all(Object.entries(manifest).map(([id, f]) => new Promise((ok) => { const i = new Image(); i.onload = () => { art[id] = i; ok(); }; i.onerror = ok; i.src = `../art/cards/${f}`; })));
+const groups = [
+  ['Ingredients', (c) => c.kind === 'ingredient'],
+  ['Tier I', (c) => c.kind === 'unit' && c.tier === 1 && !c.track && !c.rare],
+  ['Tier II', (c) => c.kind === 'unit' && c.tier === 2 && !c.track && !c.rare],
+  ['Tier III', (c) => c.kind === 'unit' && c.tier === 3 && !c.track && !c.rare],
+  ['Tier IV', (c) => c.kind === 'unit' && c.tier === 4 && !c.track && !c.rare],
+  ['Track units', (c) => c.track],
+  ['Rares', (c) => c.rare],
+];
+const out = document.getElementById('out');
+const fig = (cv, label) => { const f = document.createElement('figure'); f.append(cv); const c = document.createElement('figcaption'); c.innerHTML = label; f.append(c); return f; };
+for (const [title, test] of groups) {
+  const list = Object.values(CARDS).filter(test);
+  const h = document.createElement('h2'); h.textContent = `${title} (${list.length})`; out.append(h);
+  const g = document.createElement('div'); g.className = 'grid'; out.append(g);
+  for (const c of list) g.append(fig(D.drawCard(c, { art: art[c.id] }), `<b>${c.id}</b>${art[c.id] ? ' · art' : ''}`));
+}
+const h = document.createElement('h2'); h.textContent = 'Packs & back'; out.append(h);
+const g = document.createElement('div'); g.className = 'grid'; out.append(g);
+for (const id of Object.keys(PACKS)) g.append(fig(D.drawPack(id), `<b>${id}</b>`));
+g.append(fig(D.drawCardBack(), '<b>card back</b>'));
+</script>
+</body>
+</html>

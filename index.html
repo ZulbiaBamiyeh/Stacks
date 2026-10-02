@@ -3,35 +3,56 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Holdfast</title>
+    <title>Stackbrawl</title>
     <link rel="stylesheet" href="styles.css" />
+    <script type="importmap">
+      { "imports": { "three": "./vendor/three/three.module.js" } }
+    </script>
   </head>
   <body>
-    <div class="tabletop" id="tabletop">
-      <div class="vignette" aria-hidden="true"></div>
+    <div id="app">
+      <div id="stage"></div>
 
-      <div class="hud" id="hud">
-        <div class="hud-left">
-          <span id="hud-day">Sandbox</span>
-          <span id="hud-clock"></span>
+      <header id="hud">
+        <div class="chip brand">Stackbrawl</div>
+        <div class="chip" id="hud-day">Day 1</div>
+        <div class="chip gold"><i class="ico" data-icon="coin"></i><span id="hud-gold">10</span></div>
+        <div class="chip record" title="Wins / lives">
+          <span id="hud-wins"></span>
+          <span class="sep"></span>
+          <span id="hud-lives"></span>
         </div>
-        <div class="hud-mid">
-          <span id="hud-stats"></span>
-        </div>
-        <div class="hud-right">
-          <button type="button" id="btn-pause">Pause</button>
-          <button type="button" id="btn-speed">2×</button>
-          <button type="button" id="btn-book">Recipes</button>
+        <div class="spacer"></div>
+        <button class="chip btn" id="btn-ideas" type="button">Ideas <span id="ideas-count"></span></button>
+        <button class="chip btn" id="btn-help" type="button">How to play</button>
+        <button class="chip btn icon-btn" id="btn-sound" type="button" aria-label="Toggle sound"></button>
+      </header>
+
+      <aside id="info" class="paper" hidden></aside>
+      <div id="hint" hidden></div>
+      <div id="toasts"></div>
+
+      <div id="fight-box">
+        <div class="fight-sub" id="fight-sub"></div>
+        <button id="btn-fight" type="button">Fight!</button>
+      </div>
+
+      <div id="battle-hud" hidden>
+        <div class="fort enemy" id="fort-enemy"></div>
+        <div class="fort player" id="fort-player"></div>
+        <div class="battle-ctl">
+          <div class="clock" id="battle-clock">0.0s</div>
+          <button class="chip btn speed" data-speed="1" type="button">1×</button>
+          <button class="chip btn speed" data-speed="2" type="button">2×</button>
+          <button class="chip btn speed" data-speed="4" type="button">4×</button>
+          <button class="chip btn" id="btn-skip" type="button">Skip</button>
         </div>
       </div>
-      <div class="hud-seed" id="hud-seed"></div>
 
-      <div class="board" id="board"></div>
-      <aside id="book" class="book hidden"></aside>
-      <div id="battlefield" class="battlefield hidden"></div>
-      <div id="overlay" class="overlay hidden"></div>
+      <div id="banner" hidden></div>
+      <div id="modal" hidden></div>
+      <div id="loading">Shuffling cards…</div>
     </div>
-    <div class="grain" aria-hidden="true"></div>
-    <script type="module" src="js/main.js"></script>
+    <script type="module" src="src/main.js"></script>
   </body>
 </html>

@@ -1,5 +1,9 @@
 {
-  "name": "holdfast",
+  "name": "stackbrawl",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "start": "npx --yes http-server -c-1 -p 8080 .",
+    "test": "node --test test/*.test.js"
+  }
 }
