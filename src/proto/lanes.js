@@ -27,7 +27,12 @@ export function createLaneBattle({ left, right, seed = 1, castleHp = 400 }) {
     units: [],
     projectiles: [],
     castles: [0, 1].map((side) => ({ side, hp: castleHp, max: castleHp, x: side === 0 ? -FIELD.castleX : FIELD.castleX, z: 0 })),
-    spawners: [left, right].map((wall, side) => wall.map((type, slot) => (type ? { type, slot, side, timer: UNIT_TYPES[type].spawn - 1 } : null))),
+    spawners: [left, right].map((wall, side) => wall.map((entry, slot) => {
+      if (!entry) return null;
+      const spec = typeof entry === 'string' ? { type: entry } : entry;
+      const T = { ...UNIT_TYPES[spec.type], ...(spec.stats || {}) };
+      return { ...spec, T, slot, side, timer: T.spawn - 1, sent: 0, kills: 0, dealt: 0 };
+    })),
     stats: [0, 1].map(() => ({ spawned: 0, lost: 0, castleDmg: 0 })),
   };
   const emit = (e) => b.events.push({ t: b.t, ...e });
@@ -35,26 +40,29 @@ export function createLaneBattle({ left, right, seed = 1, castleHp = 400 }) {
   const MAX_UNITS = 36;
 
   function spawn(sp) {
-    const T = UNIT_TYPES[sp.type];
+    const T = sp.T;
     if (b.units.filter((u) => u.side === sp.side && u.hp > 0).length >= MAX_UNITS) return;
     const u = {
-      id: nextId++, type: sp.type, side: sp.side, T,
+      id: nextId++, type: sp.type, side: sp.side, T, sp, tier: sp.tier || 1, card: sp.card || null,
       x: -dir(sp.side) * FIELD.spawnX, z: slotZ(sp.slot) * 0.8 + (rng.next() - 0.5) * 0.4,
       hp: T.hp, max: T.hp, atk: T.cd * 0.5, target: null, state: 'walk', facing: dir(sp.side), lastHitBy: null,
     };
     b.units.push(u);
     b.stats[sp.side].spawned += 1;
+    sp.sent += 1;
     emit({ type: 'spawn', id: u.id, side: u.side, slot: sp.slot, unit: u.type });
   }
 
   function hurt(u, dmg, src) {
     const n = src?.T?.pierce ? dmg : Math.max(1, dmg - u.T.armor);
     u.hp -= n;
+    if (src?.sp) src.sp.dealt += n;
     emit({ type: 'hit', id: u.id, amount: n, src: src?.id ?? null });
     if (u.hp <= 0 && u.state !== 'dead') {
       u.state = 'dead';
       u.deadAt = b.t;
       b.stats[u.side].lost += 1;
+      if (src?.sp) src.sp.kills += 1;
       emit({ type: 'death', id: u.id, side: u.side });
     }
   }
@@ -62,6 +70,7 @@ export function createLaneBattle({ left, right, seed = 1, castleHp = 400 }) {
   function hurtCastle(c, dmg, src) {
     c.hp -= dmg;
     b.stats[1 - c.side].castleDmg += dmg;
+    if (src?.sp) src.sp.dealt += dmg;
     emit({ type: 'castle', side: c.side, amount: dmg, src: src?.id ?? null });
   }
 
@@ -95,7 +104,7 @@ export function createLaneBattle({ left, right, seed = 1, castleHp = 400 }) {
     for (const side of [0, 1]) for (const sp of b.spawners[side]) {
       if (!sp) continue;
       sp.timer += DT;
-      if (sp.timer >= UNIT_TYPES[sp.type].spawn) { sp.timer -= UNIT_TYPES[sp.type].spawn; spawn(sp); }
+      if (sp.timer >= sp.T.spawn) { sp.timer -= sp.T.spawn; spawn(sp); }
     }
 
     for (const u of b.units) {
