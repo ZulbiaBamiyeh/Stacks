@@ -19,6 +19,8 @@ const ARCHETYPES = {
   frost: ['iceMage', 'frostFairy', 'trapper', 'snowQueen', 'warden', 'frostArcher', 'archmage', 'mage'],
   luck: ['fairyRing', 'fairyCourt', 'luckyFairy', 'gambler', 'rogue', 'wishSprite', 'cloverSprite', 'archer', 'scout'],
   sand: ['sandcaster', 'jackal', 'dustSprite', 'duneGuard', 'stormCaller', 'sandScorpion', 'duneStalker'],
+  clockwork: ['hourglass', 'sandClock', 'timekeeper', 'stallWarden', 'doomsdayClock', 'guard', 'treant', 'healer', 'paladin'],
+  relay: ['relayRunner', 'courier', 'drummer', 'conductor', 'archer', 'scout', 'hunter', 'knight'],
   ice: ['snowSprite', 'penguin', 'yetiCub', 'iceFisher', 'frostBat', 'icicleThrower', 'blizzardSprite', 'snowballGolem', 'penguinColony', 'yeti', 'frostGiant', 'cryomancer', 'mammoth', 'shardstorm'],
 };
 
@@ -91,6 +93,7 @@ export function botGhost(day, wins = 0, losses = 0, r = createRng(day * 7919)) {
   return {
     name: `Ghost of ${r.pick(NAMES)}`,
     trinkets,
+    tableCount: 2 + r.int(7),
     day, wins, losses,
     hp: fortressHp(day),
     gold: 5 + day * 2,

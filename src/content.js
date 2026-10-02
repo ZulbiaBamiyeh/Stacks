@@ -31,6 +31,10 @@ export const SPECIAL_STATS = {
   selfPoison: (a) => [{ k: 'poison', n: a.n }],
   well: () => [{ k: 'bless', n: 4 }],
   convert: (a) => [{ k: 'poison', n: a.give }],
+  steam: () => [{ k: 'dmg', n: '*' }],
+  frostfire: (a) => [{ k: 'burn', n: `${a.take}` }],
+  chillAlly: (a) => [{ k: 'freeze', n: `${a.dur}s` }],
+  tickAll: () => [{ k: 'burn', n: '*' }, { k: 'poison', n: '*' }],
 };
 export const alt = (...list) => ({ k: 'alt', list });
 export const delay = (target, s) => ({ k: 'delay', target, s });
@@ -346,6 +350,60 @@ U('shardstorm', 'Shardstorm', 3, 'thing', 'Every 1s, deals 1 damage plus 3 per f
 U('mammoth', 'Mammoth', 3, 'wolf', "8 damage every 2.5s. Starts each fight with 20 shield. Cold can't slow it", { ...TRACK, t: [[2.5, dmg(8)]], startShield: 20, noCold: true, tags: CREATURE });
 U('hoarfrostDragon', 'Hoarfrost Dragon', 4, 'wolf', 'Every 4s, breathes frost: freezes every enemy unit for 0.8s and adds 3 Cold. 10 damage every 2.5s', { ...RARE, ...TRACK, t: [[2.5, dmg(10)], [4, freeze('all', 0.8), cold(3)]], tags: CREATURE });
 
+// ---------------------------------------------------------------- curios: niche engines to build around
+// Each tier-1 curio opens a strange line: relays, countdown bombs, lone wolves,
+// opposite-slot duels, hoarding, self-harm, hibernation, copying, purity vs.
+// variety, heat engines and status juggling.
+// relay line: positions matter
+U('relayRunner', 'Relay Runner', 1, 'person', '1 damage every 2.5s. When it acts, the unit to its right acts at once', { t: [[2.5, dmg(1)]], relay: true });
+U('courier', 'Courier', 2, 'person', '2 damage every 1.2s. Each time it acts, the unit to its right jumps ahead 0.3s', { t: [[1.2, dmg(2), charge('right', 0.3)]] });
+U('drummer', 'Drummer', 2, 'person', 'Whenever a neighbour acts, deals 1 damage', { t: [], onNeighbourAct: [dmg(1)], main: 'dmg' });
+U('bannerBearer', 'Banner Bearer', 2, 'person', '3 damage every 2s. If every unit on your wall is the same family, they all act 12% faster', { t: [[2, dmg(3)]], purist: 0.12 });
+U('conductor', 'Conductor', 3, 'person', 'Every 8th action on your wall cues all your other units to act at once', { t: [], conductor: 8 });
+U('grandOrchestra', 'Grand Orchestra', 4, 'thing', 'Every 7th action on your wall cues all your other units to act at once', { ...RARE, t: [], conductor: 7 });
+// countdown line: stall, then boom
+U('hourglass', 'Hourglass', 1, 'thing', 'Every 8s the sand runs out: deals 25 damage, then flips and starts again', { t: [], once: [8, dmg(25)], countdown: true, flips: true, main: 'dmg' });
+U('sandClock', 'Sand Clock', 2, 'thing', 'Every 10s the sand runs out: deals 40 damage that ignores shield, then flips and starts again', { t: [], once: [10, dmg(40, { pierce: true })], countdown: true, flips: true, main: 'dmg' });
+U('timekeeper', 'Timekeeper', 2, 'person', 'Every 2s, gains 4 shield and moves all your countdowns 2s closer', { t: [[2, shield(4), special('advance', { s: 2 })]] });
+U('stallWarden', 'Stall Warden', 3, 'golem', '10 shield every 2.5s, +6 for each of your countdowns still ticking', { t: [[2.5, shield(10, { perAlly: { flag: 'countdown', pending: true, n: 6 } })]] });
+U('doomsdayClock', 'Doomsday Clock', 3, 'thing', 'Does nothing for 15s, then deals 120 damage that ignores shield', { t: [], once: [15, dmg(120, { pierce: true })], countdown: true, main: 'dmg' });
+U('endOfDays', 'End of Days', 4, 'thing', 'Does nothing for 20s, then deals 200 damage that ignores shield', { ...RARE, t: [], once: [20, dmg(200, { pierce: true })], countdown: true, main: 'dmg' });
+// lone line: fewer units, stronger units
+U('hermit', 'Hermit', 1, 'person', '2 damage every 2s, +2 per empty slot on your wall', { t: [[2, dmg(2, { perEmpty: 2 })]] });
+U('recluse', 'Recluse', 2, 'golem', 'Every 3s, gains 4 shield per empty slot on your wall', { t: [[3, shield(0, { perEmpty: 4 })]], main: 'shield' });
+U('flagellant', 'Flagellant', 2, 'person', '4 damage every 1.5s, +1 per 10 HP your fortress is missing. Every 3s, you lose 2 HP', { t: [[1.5, dmg(4, { perMissing: 10 })], [3, special('selfHarm', { n: 2 })]] });
+U('solitaire', 'Solitaire Champion', 3, 'person', "6 damage every 2s. If it's your only unit, it acts twice as fast and hits for triple", { t: [[2, dmg(6)]], solo: { haste: 1, mult: 3 } });
+U('martyr', 'Martyr', 3, 'person', '6 heal every 2.5s. Whenever you lose HP to your own effects, deals triple that to the enemy', { t: [[2.5, heal(6)]], onSelfHarm: 3 });
+// duel line: the enemy unit facing you
+U('duelist', 'Duelist', 1, 'person', '3 damage every 2s. Double while the enemy slot facing it is empty', { t: [[2, dmg(3, { ifOppEmpty: 2 })]] });
+U('saboteur', 'Saboteur', 2, 'person', 'Every 3s, freezes the enemy unit facing it for 1.2s and deals 3 damage', { t: [[3, freeze('opposite', 1.2), dmg(3)]] });
+U('jouster', 'Jouster', 2, 'person', '4 shield every 3s. Whenever the enemy unit facing it acts, it strikes back for 4', { t: [[3, shield(4)]], onOppositeAct: [dmg(4)] });
+U('executioner', 'Executioner', 3, 'person', '8 damage every 2.5s, double while the enemy is below half HP. Its crits hit x4', { t: [[2.5, dmg(8, { execute: 2 })]], critMult: 4 });
+U('mirrorKnight', 'Mirror Knight', 3, 'person', '6 shield every 2.2s. Every 2.2s, copies the action of the enemy unit facing it', { t: [[2.2, shield(6), special('copyOpposite')]] });
+// hoard line: a full table is a weapon
+U('packrat', 'Packrat', 1, 'wolf', '1 damage every 1.5s, +1 per 2 cards on your table (max +4)', { t: [[1.5, dmg(1, { perTable: { per: 2, max: 4 } })]], tags: CREATURE });
+U('collector', 'Collector', 3, 'person', 'Starts each fight with 3 shield per card on your table. 2 damage every 1.5s, +1 per 2 cards on your table', { t: [[1.5, dmg(2, { perTable: { per: 2, max: 5 } })]], startShieldPerTable: 3 });
+U('hibernatingBear', 'Hibernating Bear', 2, 'wolf', '6 damage every 2.5s. While frozen, it stores 4 damage per second and adds it all to its next hit', { t: [[2.5, dmg(6)]], hibernate: 4, tags: CREATURE });
+U('iceSleeper', 'Ice Sleeper', 3, 'wolf', 'Starts each fight frozen for 6s, storing 5 damage per second. Then hits for 10 every 2s', { t: [[2, dmg(10)]], hibernate: 5, startFrozen: 6, tags: CREATURE });
+U('cryoChamber', 'Cryo Chamber', 2, 'thing', 'Every 4s, freezes one of your other units (bears first) for 1.5s and gives it +2 to its main number for the fight', { t: [[4, special('chillAlly', { dur: 1.5, bonus: 2 })]] });
+// copy line
+U('parrot', 'Parrot', 1, 'fairy', 'Every 2.5s, repeats the last action another of your units took, at half strength', { t: [[2.5, special('parrot', { pct: 0.5 })]], parrot: true });
+U('magpie', 'Magpie', 2, 'fairy', 'Every 2s, repeats the last action another of your units took, at 80% strength. +1 gold per day', { t: [[2, special('parrot', { pct: 0.8 })]], parrot: true, gold: 1 });
+// variety line
+U('chimera', 'Chimera', 3, 'wolf', '3 damage every 2s, +2 per different family on your wall', { t: [[2, dmg(3, { perFamily: 2 })]], tags: CREATURE });
+U('rainbowSerpent', 'Rainbow Serpent', 3, 'wolf', 'Every 2.5s: damage, burn, poison, heal and shield, each equal to the number of different families on your wall', { t: [[2.5, dmg(0, { perFamily: 1 }), burn(0, { perFamily: 1 }), poison(0, { perFamily: 1 }), heal(0, { perFamily: 1 }), shield(0, { perFamily: 1 })]], tags: CREATURE, main: 'dmg' });
+// luck line
+U('luckyCat', 'Lucky Cat', 1, 'wolf', '2 damage and 1 Luck every 2.5s', { t: [[2.5, dmg(2), luck(1)]], tags: CREATURE });
+U('fateWeaver', 'Fate Weaver', 2, 'fairy', '2 Luck every 3s. Whenever you crit, gain 1 more Luck', { t: [[3, luck(2)]], onCrit: [luck(1)] });
+// heat line
+U('boiler', 'Boiler', 1, 'golem', '1 Heat and 1 burn every 2s', { t: [[2, heat(1), burn(1)]] });
+U('overheater', 'Overheater', 2, 'golem', '2 Heat every 2s. While you have 15+ Heat, all your burn actions apply double', { t: [[2, heat(2)]], heatBurn: { at: 15, mult: 2 } });
+U('steamGolem', 'Steam Golem', 3, 'golem', '2 Heat every 1s. Every 2.5s, deals damage equal to your Heat, then loses 3 Heat', { t: [[1, heat(2)], [2.5, special('steam', { lose: 3 })]] });
+U('frostfireAdept', 'Frostfire Adept', 3, 'person', '3 Cold every 2s. Every 3s, turns up to 10 enemy Cold into the same amount of burn', { t: [[2, cold(3)], [3, special('frostfire', { take: 10 })]] });
+// status juggling
+U('rotGardener', 'Rot Gardener', 2, 'person', '1 poison every 2s. Whenever enemy poison ticks, heals 2', { t: [[2, poison(1)]], onEnemyPoisonTick: [heal(2)] });
+U('clockmaker', 'Clockmaker', 3, 'person', "1 burn and 1 poison every 2s. Every 4s, the enemy's burn and poison each tick once at once", { t: [[2, burn(1), poison(1)], [4, special('tickAll')]], main: 'burn' });
+
 // ---------------------------------------------------------------- recipes
 // [a, b, result, rareId?, rareChancePct?]  (order doesn't matter)
 
@@ -438,6 +496,17 @@ const RECIPE_LIST = [
   ['yeti', 'stone', 'mammoth'], ['yeti', 'ice', 'frostGiant'], ['snowballGolem', 'ice', 'frostGiant'],
   ['icicleThrower', 'ice', 'cryomancer'], ['blizzardSprite', 'berry', 'auroraSpirit'], ['blizzardSprite', 'crystal', 'shardstorm'],
   ['iceWall', 'stone', 'glacierGolem'], ['iceFisher', 'ice', 'cryomancer'],
+  // curios
+  ['relayRunner', 'feather', 'courier'], ['relayRunner', 'wood', 'drummer'], ['relayRunner', 'coin', 'bannerBearer'],
+  ['drummer', 'crystal', 'conductor', 'grandOrchestra', 15], ['courier', 'courier', 'conductor'],
+  ['hourglass', 'sand', 'sandClock'], ['hourglass', 'villager', 'timekeeper'], ['timekeeper', 'stone', 'stallWarden'],
+  ['sandClock', 'moonstone', 'doomsdayClock', 'endOfDays', 15], ['hourglass', 'hourglass', 'sandClock'],
+  ['hermit', 'stone', 'recluse'], ['hermit', 'bone', 'flagellant'], ['hermit', 'moonstone', 'solitaire'], ['flagellant', 'berry', 'martyr'],
+  ['duelist', 'sand', 'saboteur'], ['duelist', 'stone', 'jouster'], ['duelist', 'bone', 'executioner'], ['jouster', 'crystal', 'mirrorKnight'],
+  ['packrat', 'coin', 'collector'], ['packrat', 'ice', 'hibernatingBear'], ['hibernatingBear', 'ice', 'iceSleeper'], ['hourglass', 'ice', 'cryoChamber'],
+  ['parrot', 'coin', 'magpie'], ['parrot', 'bone', 'chimera'], ['chimera', 'crystal', 'rainbowSerpent'], ['parrot', 'mushroom', 'rotGardener'],
+  ['luckyCat', 'crystal', 'fateWeaver'], ['luckyCat', 'coin', 'fateWeaver'],
+  ['boiler', 'ember', 'overheater'], ['overheater', 'stone', 'steamGolem'], ['overheater', 'ice', 'frostfireAdept'], ['rotGardener', 'crystal', 'clockmaker'],
 ];
 
 // ---------------------------------------------------------------- packs & tracks
@@ -456,10 +525,11 @@ export const PACKS = {
   treasury: { id: 'treasury', name: 'Treasury Pack', price: 5, size: 3, track: 'caravan', rare: 'dragonsHoard', pool: [['goldbug', 3], ['treasureChest', 3], ['coin', 2]] },
   quarry: { id: 'quarry', name: 'Quarry Pack', price: 4, size: 3, track: 'forge', pool: [['golem', 3], ['catapult', 3], ['stone', 2]] },
   foundry: { id: 'foundry', name: 'Foundry Pack', price: 5, size: 3, track: 'forge', rare: 'titan', pool: [['smith', 3], ['clockwork', 3], ['stone', 1]] },
+  curio: { id: 'curio', name: 'Curio Pack', price: 3, size: 3, pool: [['relayRunner', 2], ['hourglass', 2], ['hermit', 2], ['duelist', 2], ['packrat', 2], ['parrot', 2], ['luckyCat', 2], ['boiler', 2], ['coin', 1]] },
   frost: { id: 'frost', name: 'Frost Pack', price: 4, size: 3, track: 'frost', pool: [['snowSprite', 3], ['iceImp', 3], ['frostling', 2], ['ice', 2]] },
   glacier: { id: 'glacier', name: 'Glacier Pack', price: 5, size: 3, track: 'frost', rare: 'hoarfrostDragon', pool: [['penguin', 3], ['yetiCub', 3], ['ice', 1], ['crystal', 1]] },
 };
-export const BASE_PACKS = ['village', 'wild', 'desert'];
+export const BASE_PACKS = ['village', 'wild', 'desert', 'curio'];
 
 export const TRACKS = [
   { id: 'flame', name: 'Flame', feed: 'ember', packs: ['flame', 'inferno'] },
@@ -527,7 +597,8 @@ for (const [kin, ids] of Object.entries(KIN)) for (const id of ids) {
 const scaleAct = (a) => {
   if (a.k === 'alt') a.list.forEach(scaleAct);
   if (a.k === 'freeze') a.dur = +(a.dur * RULES.time).toFixed(2);
-  if ((a.k === 'charge' || a.k === 'delay') && typeof a.s === 'number') a.s = +(a.s * RULES.time).toFixed(2);
+  if ((a.k === 'charge' || a.k === 'delay' || a.k === 'special') && typeof a.s === 'number') a.s = +(a.s * RULES.time).toFixed(2);
+  if (a.k === 'special' && typeof a.dur === 'number') a.dur = +(a.dur * RULES.time).toFixed(2);
   if (a.k === 'bless' && a.charge) a.charge = +(a.charge * RULES.time).toFixed(2);
   if (a.delay) a.delay = { ...a.delay, s: +(a.delay.s * RULES.time).toFixed(2) };
 };
@@ -535,7 +606,8 @@ const fmt = (n) => String(+(n * RULES.time).toFixed(1));
 for (const u of UNITS) {
   u.t = u.t.map(([cd, ...acts]) => { acts.forEach(scaleAct); return [+(cd * RULES.time).toFixed(2), ...acts]; });
   if (u.once) { u.once = [u.once[0] * RULES.time, ...u.once.slice(1)]; u.once.slice(1).forEach(scaleAct); }
-  for (const key of ['onCrit', 'onEnemyMiss', 'onFreeze', 'onHeal', 'onShieldHit', 'onNeighbourAct', 'onEnemyHeal', 'onEnemyPoisonTick', 'onEnemyBurnTick']) u[key]?.forEach(scaleAct);
+  for (const key of ['onCrit', 'onEnemyMiss', 'onFreeze', 'onHeal', 'onShieldHit', 'onNeighbourAct', 'onEnemyHeal', 'onEnemyPoisonTick', 'onEnemyBurnTick', 'onOppositeAct']) u[key]?.forEach(scaleAct);
+  if (u.startFrozen) u.startFrozen *= RULES.time;
   u.text = u.text.replace(/(\d+(?:\.\d+)?)s\b/g, (_, n) => `${fmt(Number(n))}s`);
 }
 

@@ -377,6 +377,7 @@ export function snapshot(s, name = 'You') {
     slots: slotsToday(s),
     wall: s.wall.slice(0, slotsToday(s)).map((c) => (c ? { id: c.id, perm: c.perm, meals: c.meals || 0, owned: c.owned || 0 } : null)),
     trinkets: (s.trinkets || []).filter(Boolean).map((t) => t.id),
+    tableCount: s.table.length,
   };
 }
 

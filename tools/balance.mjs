@@ -16,6 +16,8 @@ export const POOLS = {
   sand: ['sandcaster', 'jackal', 'dustSprite', 'sandScorpion', 'duneGuard', 'stormCaller', 'mirage', 'duneStalker', 'desertStalker', 'sandworm'],
   bones: ['skeleton', 'graveWolf', 'boneKnight', 'necromancer', 'boneArcher', 'boneHound', 'ashCaller', 'tombStalker', 'plagueSkeleton', 'deathKnight', 'tombKing'],
   ice: ['snowSprite', 'iceImp', 'penguin', 'yetiCub', 'iceFisher', 'iceScorpion', 'icicleThrower', 'blizzardSprite', 'frostBat', 'snowballGolem', 'penguinColony', 'yeti', 'iceWall', 'frostGiant', 'cryomancer', 'auroraSpirit', 'shardstorm', 'mammoth', 'glacierGolem', 'hoarfrostDragon'],
+  clockwork: ['hourglass', 'sandClock', 'timekeeper', 'stallWarden', 'doomsdayClock', 'endOfDays', 'guard', 'healer', 'paladin', 'treant', 'recluse', 'alchemist'],
+  relay: ['relayRunner', 'courier', 'drummer', 'bannerBearer', 'conductor', 'grandOrchestra', 'archer', 'ranger', 'knight', 'sharpshooter', 'hunter'],
   desperado: ['werewolf', 'nightScorpion', 'moonFairy', 'nightWatch', 'warlock', 'moonhowler', 'venomDrinker', 'darkKnight', 'roc'],
 };
 // Each stage: how many cards of each tier a wall gets (4 = tier IV or a rare).
@@ -38,7 +40,7 @@ export function sampleWall(name, st, r) {
   });
   for (let i = ids.length - 1; i > 0; i--) { const j = r.int(i + 1); [ids[i], ids[j]] = [ids[j], ids[i]]; }
   return {
-    name, day: st.day, hp: fortressHp(st.day), gold: 12, slots: st.slots,
+    name, day: st.day, hp: fortressHp(st.day), gold: 12, slots: st.slots, tableCount: 6,
     wall: ids.map((id) => { const d = CARDS[id]; return { id, perm: d.perm || d.permWin || d.permLoss ? st.perm : 0 }; }),
   };
 }

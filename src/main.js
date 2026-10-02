@@ -1249,7 +1249,9 @@ function updateBattle(dt) {
         if (!v) return;
         if (!u) { v.setBar(null); return; }
         const t = u.timers[0];
-        v.setBar(t && mode === 'battle' ? t.prog / t.cd : null, u.frozen > 0 ? '#5aa9d6' : D.INK);
+        // countdown units show their fuse instead of a cooldown
+        const fuse = !t && u.def.once && !u.onceDone ? Math.min(1, (B.t - (u.onceStart || 0) + (u.onceAdv || 0)) / u.def.once[0]) : null;
+        v.setBar(mode === 'battle' ? (t ? t.prog / t.cd : fuse) : null, u.frozen > 0 ? '#5aa9d6' : fuse != null ? '#d65c4a' : D.INK);
         v.frostGoal = u.frozen > 0 ? 0.55 : 0;
         if (mode !== 'intro') v.setTally(Math.floor(u.dealt));
         if (liveClock <= 0) v.setLive(B.liveStats(u));

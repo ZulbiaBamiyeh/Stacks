@@ -401,7 +401,8 @@ const NUMERIC = ['dmg', 'heal', 'shield', 'burn', 'poison', 'sand', 'heat', 'luc
 export function cardStats(def, perm = 0, live = null) {
   const stats = [];
   const seen = new Set();
-  for (const [, ...acts] of def.t || []) {
+  const extra = [def.once?.slice(1), def.onNeighbourAct, def.onOppositeAct].filter(Boolean);
+  for (const [, ...acts] of [...(def.t || []), ...extra.map((a) => [0, ...a])]) {
     for (const a0 of acts) {
       const list = a0.k === 'alt' ? a0.list : [a0];
       for (const a of list) {
@@ -418,7 +419,7 @@ export function cardStats(def, perm = 0, live = null) {
         seen.add(a.k);
         let n = a.k === 'freeze' ? `${a.dur}s` : a.n + (a.k === def.main ? perm : 0);
         const grows = ['pct', 'perGold', 'goldFrac', 'goldMult', 'shieldFrac', 'spendShield', 'healFrac', 'ramp', 'perAlly', 'perEnemy', 'ifEnemy',
-          'perShield', 'perMissing', 'perDay', 'perFrozen', 'perOwned'].some((k) => a[k]);
+          'perShield', 'perMissing', 'perDay', 'perFrozen', 'perOwned', 'perEmpty', 'perFamily', 'perTable', 'ifOppEmpty'].some((k) => a[k]);
         if (a.k !== 'freeze' && (grows || a.n === 0)) n = a.n ? `${n}+` : '*';
         // During a fight (or on the wall) show the live value, marked when it moved.
         if (live && live[a.k] != null && a.k !== 'freeze') {
@@ -591,7 +592,7 @@ export function drawCard(def, { perm = 0, art = null, summon = false, meals = 0,
         x += 40 + 6 + p.tw + 16;
       }
     }
-    const cd = def.t[0]?.[0];
+    const cd = def.t[0]?.[0] ?? def.once?.[0];
     if (cd) {
       ctx.font = font(32, 900);
       const label = `${cd}s`;

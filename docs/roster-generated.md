@@ -2,14 +2,14 @@
 
 Generated from `src/content.js` by `node tools/roster.mjs`. Do not edit by hand.
 
-221 units, 179 recipes.
+282 units, 231 recipes.
 
 ## Packs
 
 | Pack | Price | Unlock | Contents |
 | --- | --- | --- | --- |
 | Village Pack | 3 | Start | Villager, Wood, Stone, Berry, Coin |
-| Wild Pack | 3 | Start | Wolf, Fairy, Berry, Wood, Feather, Crystal |
+| Wild Pack | 3 | Start | Wolf, Fairy, Berry, Wood, Feather, Crystal, Ice |
 | Desert Pack | 3 | Start | Scorpion, Bone, Ember, Mushroom, Sand, Moonstone |
 | Flame Pack | 4 | Feed 5 Ember | Flame Imp, Salamander, Ember |
 | Inferno Pack | 5 | Feed 12 Ember | Cinder Maw, Ash Moth, Ember, Wood; 10% Ifrit |
@@ -21,8 +21,11 @@ Generated from `src/content.js` by `node tools/roster.mjs`. Do not edit by hand.
 | Treasury Pack | 5 | Feed 12 Coin | Goldbug, Treasure Chest, Coin; 10% Dragon's Hoard |
 | Quarry Pack | 4 | Feed 5 Stone | Golem, Catapult, Stone |
 | Foundry Pack | 5 | Feed 12 Stone | Smith, Clockwork, Stone; 10% Titan |
+| Curio Pack | 3 | Start | Relay Runner, Hourglass, Hermit, Duelist, Packrat, Parrot, Lucky Cat, Boiler, Coin |
+| Frost Pack | 4 | Feed 5 Ice | Snow Sprite, Ice Imp, Frostling, Ice |
+| Glacier Pack | 5 | Feed 12 Ice | Penguin, Yeti Cub, Ice, Crystal; 10% Hoarfrost Dragon |
 
-## Base game units (133)
+## Base game units (172)
 
 | Card | Tier | Effect | From |
 | --- | --- | --- | --- |
@@ -159,8 +162,47 @@ Generated from `src/content.js` by `node tools/roster.mjs`. Do not edit by hand.
 | Sun Sprite | 3 | 4 heal every 2.3s. Whenever you heal, deal 3 damage | Dryad + Ember |
 | Sun Shaman | 4 | Every 6s, deals damage equal to half the healing you did in the last 6s | Shaman + Ember |
 | Oasis Spirit | 4 | 7 heal every 2.3s. Healing past full HP becomes shield | Grove Spirit + Stone |
+| Ice Fisher | 2 | 2 damage and 1 Cold every 2.3s. +1 gold per day | Villager + Ice |
+| Ice Scorpion | 2 | 1 poison and 1 Cold every 3s. Poison +1 while the enemy has 6+ Cold | Scorpion + Ice |
+| Relay Runner | 1 | 1 damage every 3.8s. When it acts, the unit to its right acts at once | Curio Pack |
+| Courier | 2 | 2 damage every 1.8s. Each time it acts, the unit to its right jumps ahead 0.4s | Relay Runner + Feather |
+| Drummer | 2 | Whenever a neighbour acts, deals 1 damage | Relay Runner + Wood |
+| Banner Bearer | 2 | 3 damage every 3s. If every unit on your wall is the same family, they all act 12% faster | Relay Runner + Coin |
+| Conductor | 3 | Every 8th action on your wall cues all your other units to act at once | Drummer + Crystal (15%: Grand Orchestra)<br>Courier + Courier |
+| Hourglass | 1 | Every 12s the sand runs out: deals 25 damage, then flips and starts again | Curio Pack |
+| Sand Clock | 2 | Every 15s the sand runs out: deals 40 damage that ignores shield, then flips and starts again | Hourglass + Sand<br>Hourglass + Hourglass |
+| Timekeeper | 2 | Every 3s, gains 4 shield and moves all your countdowns 3s closer | Hourglass + Villager |
+| Stall Warden | 3 | 10 shield every 3.8s, +6 for each of your countdowns still ticking | Timekeeper + Stone |
+| Doomsday Clock | 3 | Does nothing for 22.5s, then deals 120 damage that ignores shield | Sand Clock + Moonstone (15%: End of Days) |
+| Hermit | 1 | 2 damage every 3s, +2 per empty slot on your wall | Curio Pack |
+| Recluse | 2 | Every 4.5s, gains 4 shield per empty slot on your wall | Hermit + Stone |
+| Flagellant | 2 | 4 damage every 2.3s, +1 per 10 HP your fortress is missing. Every 4.5s, you lose 2 HP | Hermit + Bone |
+| Solitaire Champion | 3 | 6 damage every 3s. If it's your only unit, it acts twice as fast and hits for triple | Hermit + Moonstone |
+| Martyr | 3 | 6 heal every 3.8s. Whenever you lose HP to your own effects, deals triple that to the enemy | Flagellant + Berry |
+| Duelist | 1 | 3 damage every 3s. Double while the enemy slot facing it is empty | Curio Pack |
+| Saboteur | 2 | Every 4.5s, freezes the enemy unit facing it for 1.8s and deals 3 damage | Duelist + Sand |
+| Jouster | 2 | 4 shield every 4.5s. Whenever the enemy unit facing it acts, it strikes back for 4 | Duelist + Stone |
+| Executioner | 3 | 8 damage every 3.8s, double while the enemy is below half HP. Its crits hit x4 | Duelist + Bone |
+| Mirror Knight | 3 | 6 shield every 3.3s. Every 3.3s, copies the action of the enemy unit facing it | Jouster + Crystal |
+| Packrat | 1 | 1 damage every 2.3s, +1 per 2 cards on your table (max +4) | Curio Pack |
+| Collector | 3 | Starts each fight with 3 shield per card on your table. 2 damage every 2.3s, +1 per 2 cards on your table | Packrat + Coin |
+| Hibernating Bear | 2 | 6 damage every 3.8s. While frozen, it stores 4 damage per second and adds it all to its next hit | Packrat + Ice |
+| Ice Sleeper | 3 | Starts each fight frozen for 9s, storing 5 damage per second. Then hits for 10 every 3s | Hibernating Bear + Ice |
+| Cryo Chamber | 2 | Every 6s, freezes one of your other units (bears first) for 2.3s and gives it +2 to its main number for the fight | Hourglass + Ice |
+| Parrot | 1 | Every 3.8s, repeats the last action another of your units took, at half strength | Curio Pack |
+| Magpie | 2 | Every 3s, repeats the last action another of your units took, at 80% strength. +1 gold per day | Parrot + Coin |
+| Chimera | 3 | 3 damage every 3s, +2 per different family on your wall | Parrot + Bone |
+| Rainbow Serpent | 3 | Every 3.8s: damage, burn, poison, heal and shield, each equal to the number of different families on your wall | Chimera + Crystal |
+| Lucky Cat | 1 | 2 damage and 1 Luck every 3.8s | Curio Pack |
+| Fate Weaver | 2 | 2 Luck every 4.5s. Whenever you crit, gain 1 more Luck | Lucky Cat + Crystal<br>Lucky Cat + Coin |
+| Boiler | 1 | 1 Heat and 1 burn every 3s | Curio Pack |
+| Overheater | 2 | 2 Heat every 3s. While you have 15+ Heat, all your burn actions apply double | Boiler + Ember |
+| Steam Golem | 3 | 2 Heat every 1.5s. Every 3.8s, deals damage equal to your Heat, then loses 3 Heat | Overheater + Stone |
+| Frostfire Adept | 3 | 3 Cold every 3s. Every 4.5s, turns up to 10 enemy Cold into the same amount of burn | Overheater + Ice |
+| Rot Gardener | 2 | 1 poison every 3s. Whenever enemy poison ticks, heals 2 | Parrot + Mushroom |
+| Clockmaker | 3 | 1 burn and 1 poison every 3s. Every 6s, the enemy's burn and poison each tick once at once | Rot Gardener + Crystal |
 
-## Track units (72)
+## Track units (92)
 
 | Card | Tier | Effect | From |
 | --- | --- | --- | --- |
@@ -236,8 +278,28 @@ Generated from `src/content.js` by `node tools/roster.mjs`. Do not edit by hand.
 | Runesmith | 3 | 2 damage every 3s. Neighbours deal +2 damage and act 15% faster | Master Smith + Crystal |
 | Clockwork Knight | 2 | 1 damage every 1s. Each hit gives you 1 shield | Clockwork + Stone |
 | Gearstorm | 2 | 1 damage every 1s. Gets 4% faster with every hit (max +60%) | Clockwork + Clockwork |
+| Snow Sprite | 1 | 2 damage and 1 Cold every 3s | Frost Pack |
+| Ice Imp | 1 | Freezes a random enemy unit for 0.9s every 4.5s | Frost Pack |
+| Frostling | 1 | 3 shield every 3.8s, +1 per meal eaten. Eats Ice or Stone. Evolves after 5 meals | Frost Pack |
+| Glacier Golem | 3 | 4 shield and 1 Cold every 3s, shield +1 per meal eaten. Eats Ice or Stone. Evolves after 12 meals | Ice Wall + Stone<br>Frostling after 5 meals |
+| Living Glacier | 4 | 5 shield and 2 Cold every 2.7s, shield +1 per meal eaten. At fight start the enemy gains Cold equal to half its meals. Still eats Ice or Stone | Glacier Golem after 12 meals |
+| Penguin | 1 | 3 damage every 2.7s. +2 damage while the enemy has Cold | Glacier Pack |
+| Yeti Cub | 1 | 4 damage every 3.8s, +1 per 3 Cold on the enemy (max +4) | Glacier Pack |
+| Icicle Thrower | 2 | 3 damage every 1.8s, +3 per frozen enemy unit | Ice Imp + Wood |
+| Blizzard Sprite | 2 | 2 Cold every 3s. Freezes a random enemy unit for 0.9s every 6s | Ice Imp + Ice<br>Snow Sprite + Ice |
+| Ice Wall | 2 | 6 shield every 3.8s. Whenever an enemy hits your shield, the unit that acted last is frozen for 0.6s | Frostling + Wood |
+| Frost Bat | 2 | 2 damage and 1 Cold every 1.5s | Wolf + Ice<br>Snow Sprite + Feather |
+| Snowball Golem | 2 | 4 damage every 3.8s, +1 per hit this fight (max +6). It just keeps rolling | Snow Sprite + Stone |
+| Penguin Colony | 2 | Every 3.8s, 3 penguins hit for 2 damage each, +2 each while the enemy has Cold | Penguin + Penguin<br>Penguin + Ice |
+| Yeti | 2 | 7 damage every 3.8s, +1 per 3 Cold on the enemy (max +5). Starts each fight with 8 shield | Yeti Cub + Ice |
+| Frost Giant | 3 | 10 damage and 3 Cold every 4.5s | Yeti + Ice<br>Snowball Golem + Ice |
+| Cryomancer | 3 | 4 damage and 2 Cold every 3s. Damage +1 per 2 Cold on the enemy (max +8) | Icicle Thrower + Ice<br>Ice Fisher + Ice |
+| Aurora Spirit | 3 | 4 heal and 2 Cold every 3.8s. Heal +2 per frozen enemy unit | Blizzard Sprite + Berry |
+| Shardstorm | 3 | Every 1.5s, deals 1 damage plus 3 per frozen enemy unit. Freezes a random enemy unit for 0.9s every 4.5s | Blizzard Sprite + Crystal |
+| Mammoth | 3 | 8 damage every 3.8s. Starts each fight with 20 shield. Cold can't slow it | Yeti + Stone |
+| Hoarfrost Dragon | Rare | Every 6s, breathes frost: freezes every enemy unit for 1.2s and adds 3 Cold. 10 damage every 3.8s | — |
 
-## Rares (16)
+## Rares (19)
 
 | Card | Tier | Effect | From |
 | --- | --- | --- | --- |
@@ -257,3 +319,6 @@ Generated from `src/content.js` by `node tools/roster.mjs`. Do not edit by hand.
 | Four-Leaf Fairy | Rare | At fight start, Bless 15 times and gain 6 Luck | Lucky Fairy + Crystal (15%) |
 | Sandworm | Rare | Every 6s, consumes up to 8 of the enemy's Sand to deal 5 damage per stack, ignoring shield | Sand Scorpion + Sand (15%) |
 | Winter Djinn | Rare | Your freezes last 50% longer. Each freeze charges your highest-tier unit 1.5s | Snow Queen + Moonstone (15%) |
+| Hoarfrost Dragon | Rare | Every 6s, breathes frost: freezes every enemy unit for 1.2s and adds 3 Cold. 10 damage every 3.8s | — |
+| Grand Orchestra | Rare | Every 7th action on your wall cues all your other units to act at once | Drummer + Crystal (15%) |
+| End of Days | Rare | Does nothing for 30s, then deals 200 damage that ignores shield | Sand Clock + Moonstone (15%) |
