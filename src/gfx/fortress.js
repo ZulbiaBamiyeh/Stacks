@@ -327,6 +327,22 @@ export function createFortressHud(scene, { x, z }) {
     floaters.push({ sprite: sp, age: 0, life: 1.0, rise: top ? 1.2 : 0.5, size: 0.7, pop: 1 });
   }
 
+  // Little numbers peeling off the end of the health fill: burn and poison as
+  // they drain (two or three a second), heals as they land.
+  const TICK_COLOR = { burn: '#ff6a3d', poison: '#b6e04e', heal: '#7ef0a6' };
+  function edgeFloat(kind, text) {
+    const fill = Math.max(0, st.shown) / st.max;
+    const ex = THREE.MathUtils.clamp(-BAR.w / 2 + 0.2 + fill * (BAR.w - 0.4), -BAR.w / 2 + 0.4, BAR.w / 2 - 0.4);
+    const sp = sprite(text, TICK_COLOR[kind], null, 72);
+    // each kind keeps its own lane so simultaneous ticks don't stack up
+    const lane = { burn: -0.55, poison: 0.0, heal: -1.1 }[kind];
+    sp.position.set(ex + lane + (Math.random() - 0.5) * 0.25, lift.py * 0.85, lift.pz * 0.7 + (Math.random() - 0.5) * 0.12);
+    g.add(sp);
+    floaters.push({ sprite: sp, age: 0, life: 0.9, rise: top ? 1.0 : 0.5, size: kind === 'heal' ? 0.68 : 0.6, pop: 1 });
+  }
+  const tickAcc = { burn: 0, poison: 0 };
+  const tickClock = { burn: 0, poison: 0 };
+
   function clearSprites() {
     for (const c of Object.values(counters)) { g.remove(c.sprite); c.sprite.material.map.dispose(); c.sprite.material.dispose(); }
     for (const k of Object.keys(counters)) delete counters[k];
@@ -339,6 +355,7 @@ export function createFortressHud(scene, { x, z }) {
     reset(maxHp) {
       Object.assign(st, { hp: maxHp, shown: maxHp, max: maxHp, lag: maxHp, shield: 0, shieldShown: 0, flash: 0, healFlash: 0, shieldFlash: 0, poison: 0, burn: 0 });
       drain.burn = drain.poison = drainRate.burn = drainRate.poison = 0;
+      tickAcc.burn = tickAcc.poison = tickClock.burn = tickClock.poison = 0;
       shownText = null;
       fx.reset();
       clearSprites();
@@ -354,7 +371,6 @@ export function createFortressHud(scene, { x, z }) {
       if (!P) return;
       P.pulse = 1;
       P.flash = 1;
-      if (amount > 0) pillFloat(kind, `-${amount}`);
     },
     add(kind, n) {
       if (!(n > 0)) return;
@@ -377,6 +393,11 @@ export function createFortressHud(scene, { x, z }) {
         // Spread this tick's damage over the time until the next one.
         drain[kind] += n;
         drainRate[kind] = drain[kind] / TICK[kind];
+        return;
+      }
+      if (kind === 'heal') {
+        st.healFlash = 0.8;
+        edgeFloat('heal', `+${n}`);
         return;
       }
       const K = KIND[kind];
@@ -423,8 +444,22 @@ export function createFortressHud(scene, { x, z }) {
     update(dt, simRate = 1) {
       for (const k of ['burn', 'poison']) {
         if (drain[k] <= 0) continue;
-        const dec = simRate > 0 ? drainRate[k] * dt * simRate : Math.max(drain[k] * dt * 6, 30 * dt);
-        drain[k] = Math.max(0, drain[k] - dec);
+        const dec = Math.min(drain[k], simRate > 0 ? drainRate[k] * dt * simRate : Math.max(drain[k] * dt * 6, 30 * dt));
+        drain[k] -= dec;
+        tickAcc[k] += dec;
+        tickClock[k] += dt;
+        // pop the drained amount off as a whole number every ~0.4s
+        if (tickAcc[k] >= 1 && tickClock[k] >= 0.38) {
+          const n = Math.floor(tickAcc[k]);
+          tickAcc[k] -= n;
+          tickClock[k] = 0;
+          edgeFloat(k, `-${n}`);
+        }
+        if (drain[k] <= 1e-6) {
+          drain[k] = 0;
+          if (tickAcc[k] >= 0.5) edgeFloat(k, `-${Math.round(tickAcc[k])}`);
+          tickAcc[k] = 0;
+        }
       }
       const shown = Math.min(st.max, st.hp + drain.burn + drain.poison);
       if (shown !== st.shown) { st.shown = shown; dirty = true; }

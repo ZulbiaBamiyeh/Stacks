@@ -1281,4 +1281,4 @@ if (!S.history.length && !S.table.length && S.day === 1) {
 }
 
 // Debug handle for the console.
-window.stackbrawl = { get state() { return S; }, get battle() { return B; }, views, world, R, refresh };
+window.stackbrawl = { get state() { return S; }, get battle() { return B; }, views, world, R, refresh, fortHud };
