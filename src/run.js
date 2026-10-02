@@ -2,7 +2,7 @@
 // Pure data in, data out (no DOM) so it can be saved and tested.
 import {
   CARDS, PACKS, BASE_PACKS, TRACKS, TRACK_STEPS, TRACK_RARE_CHANCE, RULES, INGREDIENTS,
-  BASE_UNITS, recipeFor, sellValue, fortressHp, wallSlots, eats, combineCost,
+  BASE_UNITS, recipeFor, sellValue, fortressHp, wallSlots, eats, combineCost, starCost,
 } from './content.js';
 import { createRng, randomSeed } from './rng.js';
 import { TRINKETS, TK_BY, RACK_SLOTS, MAX_STACK, FORGE_COST, aggregate, trinketSellValue } from './trinkets.js';
@@ -251,6 +251,34 @@ export function combine(s, aUid, bUid, { prepaid = false } = {}) {
   return { ok: true, inst, rare, info, firstTime };
 }
 
+// ---------------------------------------------------------------- stars
+
+// Merging a unit with a copy of itself adds a star (up to 3).
+export function starInfo(s, aUid, bUid) {
+  const a = find(s, aUid);
+  const b = find(s, bUid);
+  if (!a || !b || a === b || a.inst.id !== b.inst.id || CARDS[a.inst.id].kind !== 'unit') return null;
+  const stars = (a.inst.stars || 0) + (b.inst.stars || 0) + 1;
+  if (stars > 3) return { ok: false, stars, reason: 'Already at ★★★ (3 stars max)' };
+  const cost = Math.max(0, starCost(CARDS[a.inst.id], stars) - (trinketMods(s).combineDiscount || 0));
+  return { ok: true, stars, cost };
+}
+
+export function starUp(s, aUid, bUid) {
+  const info = starInfo(s, aUid, bUid);
+  if (!info || !info.ok) return { ok: false, reason: info?.reason || 'Nothing happens' };
+  if (s.gold < info.cost) return { ok: false, reason: `Starring up costs ${info.cost} gold` };
+  s.gold -= info.cost;
+  const a = find(s, aUid).inst;
+  const b = find(s, bUid).inst;
+  remove(s, aUid);
+  b.stars = info.stars;
+  b.perm += a.perm;
+  b.meals = Math.max(b.meals || 0, a.meals || 0);
+  b.owned = Math.max(b.owned || 0, a.owned || 0);
+  return { ok: true, inst: b, stars: info.stars, cost: info.cost };
+}
+
 // ---------------------------------------------------------------- bundles and trinkets
 
 // Stacking an ingredient on the same ingredient makes a bundle (up to 5).
@@ -381,7 +409,7 @@ export function snapshot(s, name = 'You') {
     hp: fortressHp(s.day),
     gold: s.gold,
     slots: slotsToday(s),
-    wall: s.wall.slice(0, slotsToday(s)).map((c) => (c ? { id: c.id, perm: c.perm, meals: c.meals || 0, owned: c.owned || 0 } : null)),
+    wall: s.wall.slice(0, slotsToday(s)).map((c) => (c ? { id: c.id, perm: c.perm, meals: c.meals || 0, owned: c.owned || 0, stars: c.stars || 0 } : null)),
     trinkets: (s.trinkets || []).filter(Boolean).map((t) => t.id),
     tableCount: s.table.length,
   };

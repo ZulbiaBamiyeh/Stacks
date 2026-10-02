@@ -1,6 +1,6 @@
 // Everything drawn with canvas 2D: card faces, packs, icons, shop tiles and
 // the hand-drawn board/forest textures. Ink-on-paper, Stacklands-adjacent.
-import { CARDS, PACKS, SPECIAL_STATS } from '../content.js';
+import { CARDS, PACKS, SPECIAL_STATS, starMult } from '../content.js';
 import { createRng } from '../rng.js';
 
 export const INK = '#2a241c';
@@ -398,7 +398,8 @@ function blob(ctx, cx, cy, rx, ry, seed) {
 
 const NUMERIC = ['dmg', 'heal', 'shield', 'burn', 'poison', 'sand', 'heat', 'luck', 'bless', 'freeze'];
 
-export function cardStats(def, perm = 0, live = null) {
+export function cardStats(def, perm = 0, live = null, stars = 0) {
+  const sm = starMult(def, stars);
   const stats = [];
   const seen = new Set();
   const extra = [def.once?.slice(1), def.onNeighbourAct, def.onOppositeAct].filter(Boolean);
@@ -417,13 +418,13 @@ export function cardStats(def, perm = 0, live = null) {
         }
         if (!NUMERIC.includes(a.k) || seen.has(a.k)) continue;
         seen.add(a.k);
-        let n = a.k === 'freeze' ? `${a.dur}s` : a.n + (a.k === def.main ? perm : 0);
+        let n = a.k === 'freeze' ? `${+(a.dur * (1 + 0.25 * stars)).toFixed(2)}s` : Math.round((a.n + (a.k === def.main ? perm : 0)) * sm);
         const grows = ['pct', 'perGold', 'goldFrac', 'goldMult', 'shieldFrac', 'spendShield', 'healFrac', 'ramp', 'perAlly', 'perEnemy', 'ifEnemy',
           'perShield', 'perMissing', 'perDay', 'perFrozen', 'perOwned', 'perEmpty', 'perFamily', 'perTable', 'ifOppEmpty'].some((k) => a[k]);
         if (a.k !== 'freeze' && (grows || a.n === 0)) n = a.n ? `${n}+` : '*';
         // During a fight (or on the wall) show the live value, marked when it moved.
         if (live && live[a.k] != null && a.k !== 'freeze') {
-          const base = a.n + (a.k === def.main ? perm : 0);
+          const base = Math.round((a.n + (a.k === def.main ? perm : 0)) * sm);
           const v = live[a.k];
           stats.push({ k: a.k, n: v, delta: Math.sign(v - base) });
           continue;
@@ -457,7 +458,7 @@ const ART_TINT = {
   bless: '#f8eec6', luck: '#e3f0d6', freeze: '#dbf0f8', heat: '#fbe0bf',
 };
 
-export function drawCard(def, { perm = 0, art = null, summon = false, meals = 0, live = null, stack = 1 } = {}) {
+export function drawCard(def, { perm = 0, art = null, summon = false, meals = 0, live = null, stack = 1, stars = 0 } = {}) {
   const { w, h } = CARD_PX;
   const cv = canvas(w, h);
   const ctx = cv.getContext('2d');
@@ -480,8 +481,37 @@ export function drawCard(def, { perm = 0, art = null, summon = false, meals = 0,
   ctx.fillStyle = col.title;
   ctx.textBaseline = 'middle';
   const tierW = def.tier ? 46 : 0;
-  fitText(ctx, def.name, w - 48 - tierW, 38, 900, 20);
+  const starW = stars ? stars * 40 + 8 : 0;
+  fitText(ctx, def.name, w - 48 - tierW - starW, 38, 900, 20);
   ctx.fillText(def.name, 24, HEAD / 2 + 3);
+  // stars from merging copies, right after the name
+  if (stars) {
+    const nameW = ctx.measureText(def.name).width;
+    for (let i = 0; i < stars; i++) {
+      const sx = 24 + nameW + 26 + i * 40;
+      const sy = HEAD / 2 + 2;
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.beginPath();
+      for (let k = 0; k < 10; k++) {
+        const r = k % 2 ? 8.5 : 20;
+        const a = -Math.PI / 2 + (k * Math.PI) / 5;
+        ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+      }
+      ctx.closePath();
+      ctx.lineWidth = 7;
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = INK;
+      ctx.stroke();
+      ctx.fillStyle = def.rare ? '#fff1a0' : '#ffd84a';
+      ctx.fill();
+      ctx.lineWidth = 0.01;
+      ctx.strokeStyle = INK;
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.fillStyle = col.title;
+  }
   if (def.tier && !def.rare) {
     ctx.save();
     ctx.globalAlpha = 0.5;
@@ -573,7 +603,7 @@ export function drawCard(def, { perm = 0, art = null, summon = false, meals = 0,
   // Bottom badges
   const by = h - 58;
   if (def.kind === 'unit') {
-    const stats = cardStats(def, perm, live);
+    const stats = cardStats(def, perm, live, stars);
     if (stats.length) {
       ctx.font = font(40, 900);
       const parts = stats.map((s) => ({ ...s, tw: ctx.measureText(String(s.n)).width }));

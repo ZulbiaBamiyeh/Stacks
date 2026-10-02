@@ -109,3 +109,19 @@ test('completing a track at 10 opens its second pack and gifts its rare', () => 
   assert.ok(s.table.some((c) => c.id === 'ifrit'));
   assert.ok(run.availablePacks(s).includes('inferno'));
 });
+
+test('merging copies of a unit adds stars (max 3) and multiplies its numbers', () => {
+  const s = run.newRun(4);
+  s.table = []; s.gold = 30;
+  const k = () => { const c = run.makeInst(s, 'archer'); s.table.push(c); return c; };
+  const a = k();
+  assert.ok(run.starUp(s, k().uid, a.uid).ok);
+  assert.equal(a.stars, 1);
+  assert.ok(run.starUp(s, k().uid, a.uid).ok);
+  assert.ok(run.starUp(s, k().uid, a.uid).ok);
+  assert.equal(a.stars, 3);
+  assert.equal(run.starInfo(s, k().uid, a.uid).ok, false);
+  assert.equal(s.gold, 30 - 2 - 4 - 6);
+  const mk = (stars) => createBattle({ left: side(['archer'], [], { wall: [{ id: 'archer', stars }], slots: 1 }), right: side(['villager']), seed: 1 });
+  assert.ok(mk(3).liveStats(mk(3).sides[0].units[0]).dmg > mk(0).liveStats(mk(0).sides[0].units[0]).dmg * 2.5);
+});

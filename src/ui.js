@@ -1,6 +1,6 @@
 // DOM overlay: HUD chips, hover info, drag hint, toasts, banners, modals,
 // and the fortress bars during a fight.
-import { CARDS, PACKS, RECIPES, RULES, fortressHp, wallSlots, combineCost } from './content.js';
+import { CARDS, PACKS, RECIPES, RULES, fortressHp, wallSlots, combineCost, starMult } from './content.js';
 import { iconURL, ROMAN, cardStats, TRINKET_METAL } from './gfx/draw.js';
 import { TRINKETS, TK_BY } from './trinkets.js';
 
@@ -42,7 +42,7 @@ export function createUI() {
     const tag = d.kind === 'ingredient'
       ? 'Ingredient'
       : `${d.rare ? '<span class="rare-tag">★ Rare</span> · ' : ''}Tier ${ROMAN[d.tier]} ${d.track ? 'track unit' : 'unit'}${d.tags?.includes('creature') ? ' · creature' : ''}`;
-    const stats = d.kind === 'unit' ? cardStats(d, inst?.perm || 0).map((st) => `<span>${ico(st.k)}${esc(st.n)}</span>`).join('') : '';
+    const stats = d.kind === 'unit' ? cardStats(d, inst?.perm || 0, null, inst?.stars || 0).map((st) => `<span>${ico(st.k)}${esc(st.n)}</span>`).join('') : '';
     const meals = inst?.meals || 0;
     const ev = d.eats?.evolve;
     const eater = d.eats ? `<p><b>Eats</b> ${d.eats.foods.map((f) => `${ico(f)} ${esc(nameOf(f))}`).join(', ')} (drop them on it). Eaten ${meals}${ev ? `, evolves into <b>${esc(nameOf(ev[1]))}</b> at ${ev[0]}` : ''}.</p>` : '';
@@ -57,7 +57,11 @@ export function createUI() {
       }).join('')}${uses.length > known.length ? `<div class="muted">${known.length ? '+ ' : ''}${uses.length - known.length} undiscovered combination${uses.length - known.length > 1 ? 's' : ''}</div>` : ''}</div>`
       : '';
     const right = price != null ? `<span class="sell">${ico('coin')} ${price}</span>` : sell != null ? `<span class="sell muted">sells ${ico('coin')} ${sell}</span>` : '';
-    return `<h3>${esc(d.name)}</h3><span class="tag">${tag}</span>${right}<div class="stats">${stats}</div><p>${esc(d.text)}</p>${perm}${extra}${recipes}`;
+    const stars = inst?.stars || 0;
+    const starLine = d.kind !== 'unit' ? '' : stars
+      ? `<p><span class="rare">${'★'.repeat(stars)}</span> All numbers ×${starMult(d, stars)}, ${Math.round(stars * RULES.starHaste * 100)}% faster.${stars < 3 ? ' Merge another copy for more.' : ''}</p>`
+      : '<p class="muted small">Drop a copy of this unit on it to add a ★ (up to ★★★).</p>';
+    return `<h3>${esc(d.name)}${stars ? ` <span class="rare">${'★'.repeat(stars)}</span>` : ''}</h3><span class="tag">${tag}</span>${right}<div class="stats">${stats}</div><p>${esc(d.text)}</p>${starLine}${perm}${extra}${recipes}`;
   }
 
   // Right-click popover: what this card combines with. Partners you own are

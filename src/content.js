@@ -426,21 +426,21 @@ const RECIPE_LIST = [
   ['pyromancer', 'ember', 'infernoMage'], ['iceMage', 'crystal', 'archmage'],
   ['necromancer', 'moonstone', 'wraith', 'lich', 20], ['ranger', 'feather', 'hawkeye'],
 
-  ['wolf', 'wolf', 'wolfPack'], ['wolf', 'ember', 'hellhound'], ['wolf', 'stone', 'direWolf'],
+  ['wolf', 'berry', 'wolfPack'], ['wolf', 'ember', 'hellhound'], ['wolf', 'stone', 'direWolf'],
   ['wolf', 'feather', 'griffin'], ['wolf', 'bone', 'graveWolf'], ['wolf', 'scorpion', 'sandStalker'],
   ['wolf', 'moonstone', 'werewolf'],
   ['wolfPack', 'wolf', 'alpha'], ['hellhound', 'ember', 'cerberus'], ['direWolf', 'crystal', 'frostWolf'],
   ['griffin', 'feather', 'skyGriffin', 'roc', 15], ['graveWolf', 'bone', 'boneHound'],
   ['sandStalker', 'scorpion', 'desertStalker', 'manticore', 20], ['werewolf', 'moonstone', 'moonhowler'],
 
-  ['scorpion', 'scorpion', 'scorpionSwarm', 'scorpionQueen', 10], ['scorpion', 'bone', 'deathstalker'],
+  ['scorpion', 'coin', 'scorpionSwarm', 'scorpionQueen', 10], ['scorpion', 'bone', 'deathstalker'],
   ['scorpion', 'ember', 'fireScorpion'], ['scorpion', 'stone', 'armoredScorpion'],
   ['scorpion', 'mushroom', 'sporeScorpion'], ['scorpion', 'moonstone', 'nightScorpion'],
   ['scorpionSwarm', 'scorpion', 'scorpionNest'], ['deathstalker', 'bone', 'tombStalker'],
   ['fireScorpion', 'ember', 'lavaScorpion'], ['armoredScorpion', 'stone', 'shellScorpion'],
   ['sporeScorpion', 'mushroom', 'fungalNest'],
 
-  ['fairy', 'fairy', 'fairyRing'], ['fairy', 'berry', 'dryad'], ['fairy', 'wood', 'treant'],
+  ['fairy', 'stone', 'fairyRing'], ['fairy', 'berry', 'dryad'], ['fairy', 'wood', 'treant'],
   ['fairy', 'ember', 'wisp'], ['fairy', 'feather', 'pixie'], ['fairy', 'crystal', 'frostFairy'],
   ['fairy', 'mushroom', 'sporeFairy'], ['fairy', 'coin', 'luckyFairy'], ['fairy', 'moonstone', 'moonFairy'],
   ['fairyRing', 'fairy', 'fairyCourt'], ['dryad', 'berry', 'groveSpirit'], ['treant', 'wood', 'elderTreant'],
@@ -453,14 +453,14 @@ const RECIPE_LIST = [
   ['torchbearer', 'wood', 'beacon'], ['smokeImp', 'mushroom', 'smogElemental'], ['salamander', 'stone', 'magmaSalamander'],
   ['salamander', 'mushroom', 'toxicNewt'], ['salamander', 'ember', 'firedrake'], ['firedrake', 'ember', 'drakeMatriarch'],
   ['ashMoth', 'feather', 'cinderHawk'], ['cinderHawk', 'ember', 'pyreMoth'], ['ashMoth', 'wood', 'pyreKeeper'],
-  ['flameImp', 'flameImp', 'hellImp'], ['ashMoth', 'flameImp', 'cinderHawk'],
+  ['ashMoth', 'flameImp', 'cinderHawk'],
   // Tomb
   ['ghoul', 'bone', 'ghast'], ['ghoul', 'mushroom', 'corpseEater'], ['mummy', 'bone', 'boneGolem'],
-  ['mummy', 'sand', 'sandMummy'], ['sandMummy', 'coin', 'pharaoh'], ['plagueRat', 'plagueRat', 'ratKing'],
+  ['mummy', 'sand', 'sandMummy'], ['sandMummy', 'coin', 'pharaoh'], ['plagueRat', 'bone', 'ratKing'], 
   ['plagueRat', 'berry', 'plagueDoctor'], ['plagueRat', 'mushroom', 'blightRat'], ['blightRat', 'bone', 'fester'],
   ['plagueRat', 'scorpion', 'blightRat'],
   // Grove
-  ['stag', 'berry', 'unicorn'], ['stag', 'stag', 'elkHerd'], ['stag', 'stone', 'antlerGuard'],
+  ['stag', 'berry', 'unicorn'], ['stag', 'wood', 'elkHerd'], ['stag', 'stone', 'antlerGuard'],
   ['elkHerd', 'feather', 'greatStag'], ['thornbush', 'stone', 'briarWall'], ['thornbush', 'berry', 'rosebush'],
   ['briarWall', 'wood', 'ancientTree'], ['vineling', 'berry', 'bloomVine'], ['stag', 'wolf', 'elkHerd'],
   // Caravan
@@ -469,7 +469,7 @@ const RECIPE_LIST = [
   // Forge
   ['golem', 'stone', 'ironGolem'], ['catapult', 'wood', 'siegeTower'], ['catapult', 'ember', 'fireCatapult'],
   ['siegeTower', 'stone', 'trebuchet'], ['smith', 'stone', 'masterSmith'], ['masterSmith', 'crystal', 'runesmith'],
-  ['clockwork', 'stone', 'clockworkKnight'], ['clockwork', 'clockwork', 'gearstorm'], ['smith', 'villager', 'masterSmith'],
+  ['clockwork', 'stone', 'clockworkKnight'], ['clockwork', 'coin', 'gearstorm'], ['smith', 'villager', 'masterSmith'],
   // Side-grades
   ['villager', 'moonstone', 'nightWatch'], ['archer', 'bone', 'boneArcher'], ['archer', 'mushroom', 'venomArcher'],
   ['fireMage', 'mushroom', 'smokeweaver'], ['guard', 'ember', 'braziarGuard'], ['healer', 'mushroom', 'herbalist'],
@@ -492,15 +492,15 @@ const RECIPE_LIST = [
   ['villager', 'ice', 'iceFisher'], ['scorpion', 'ice', 'iceScorpion'], ['wolf', 'ice', 'frostBat'],
   ['iceImp', 'ice', 'blizzardSprite'], ['iceImp', 'wood', 'icicleThrower'], ['snowSprite', 'stone', 'snowballGolem'],
   ['snowSprite', 'feather', 'frostBat'], ['snowSprite', 'ice', 'blizzardSprite'], ['frostling', 'wood', 'iceWall'],
-  ['penguin', 'penguin', 'penguinColony'], ['penguin', 'ice', 'penguinColony'], ['yetiCub', 'ice', 'yeti'],
+  ['penguin', 'ice', 'penguinColony'], ['yetiCub', 'ice', 'yeti'],
   ['yeti', 'stone', 'mammoth'], ['yeti', 'ice', 'frostGiant'], ['snowballGolem', 'ice', 'frostGiant'],
   ['icicleThrower', 'ice', 'cryomancer'], ['blizzardSprite', 'berry', 'auroraSpirit'], ['blizzardSprite', 'crystal', 'shardstorm'],
   ['iceWall', 'stone', 'glacierGolem'], ['iceFisher', 'ice', 'cryomancer'],
   // curios
   ['relayRunner', 'feather', 'courier'], ['relayRunner', 'wood', 'drummer'], ['relayRunner', 'coin', 'bannerBearer'],
-  ['drummer', 'crystal', 'conductor', 'grandOrchestra', 15], ['courier', 'courier', 'conductor'],
+  ['drummer', 'crystal', 'conductor', 'grandOrchestra', 15], 
   ['hourglass', 'sand', 'sandClock'], ['hourglass', 'villager', 'timekeeper'], ['timekeeper', 'stone', 'stallWarden'],
-  ['sandClock', 'moonstone', 'doomsdayClock', 'endOfDays', 15], ['hourglass', 'hourglass', 'sandClock'],
+  ['sandClock', 'moonstone', 'doomsdayClock', 'endOfDays', 15], 
   ['hermit', 'stone', 'recluse'], ['hermit', 'bone', 'flagellant'], ['hermit', 'moonstone', 'solitaire'], ['flagellant', 'berry', 'martyr'],
   ['duelist', 'sand', 'saboteur'], ['duelist', 'stone', 'jouster'], ['duelist', 'bone', 'executioner'], ['jouster', 'crystal', 'mirrorKnight'],
   ['packrat', 'coin', 'collector'], ['packrat', 'ice', 'hibernatingBear'], ['hibernatingBear', 'ice', 'iceSleeper'], ['hourglass', 'ice', 'cryoChamber'],
@@ -563,6 +563,13 @@ export const RULES = {
   suddenTick: 1.5,
   freezeGuard: 1.5,
   startGold: 10,
+  // Stars: merge a unit with a copy of itself (up to 3 stars). Each star
+  // multiplies all its numbers and speeds it up a little; rares scale harder.
+  starMult: [1, 1.5, 2.2, 3],
+  rareStarMult: [1, 1.8, 3, 5],
+  starHaste: 0.08,
+  starCost: [0, 2, 4, 6],
+  rareStarCost: [0, 5, 7, 9],
   // after each fight: +1 gold per interestPer held, up to interestMax
   interestPer: 10,
   interestMax: 3,
@@ -651,6 +658,9 @@ for (const u of UNITS) {
 
 export const BASE_UNITS = ['villager', 'wolf', 'scorpion', 'fairy'];
 export const SUMMONABLE = new Set(['scorpion', 'wolf', 'plagueRat', 'skeleton']);
+
+export const starMult = (def, stars) => (stars ? (def.rare ? RULES.rareStarMult : RULES.starMult)[stars] : 1);
+export const starCost = (def, stars) => (def.rare ? RULES.rareStarCost : RULES.starCost)[stars];
 
 export function combineCost(resultId) {
   const d = CARDS[resultId];

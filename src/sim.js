@@ -1,6 +1,6 @@
 // Deterministic battle simulation. Two fortresses, units on cooldowns.
 // The renderer steps it in real time and drains `battle.events` for effects.
-import { CARDS, RULES } from './content.js';
+import { CARDS, RULES, starMult } from './content.js';
 import { createRng } from './rng.js';
 import { TRINKETS, aggregate } from './trinkets.js';
 
@@ -10,7 +10,7 @@ function makeUnit(id, side, slot, perm = 0, summoned = false, extra = {}) {
   const def = CARDS[id];
   return {
     def, id, side, slot, perm, summoned,
-    meals: extra.meals || 0, owned: extra.owned || 0, fires: 0, dealt: 0, accel: 0, selfBonus: 0,
+    meals: extra.meals || 0, owned: extra.owned || 0, stars: extra.stars || 0, fires: 0, dealt: 0, accel: 0, selfBonus: 0,
     bonus: 0, frozen: 0, guard: 0,
     timers: def.t.map(([cd, ...acts], i) => ({ cd, acts, prog: def.firstStrike && i === 0 ? cd : 0 })),
     onceDone: false, summons: 0, blessCount: 0, ramp: 0, shots: 0, altIdx: 0, primed: false,
@@ -161,6 +161,7 @@ export function createBattle({ left, right, seed = 1 }) {
     haste += sum(S, 'emptyHaste') * empty;
     if (u.def.burningHaste && sides[1 - u.side].burn > 0) haste += u.def.burningHaste;
     if (alive(S).some((v) => v.def.purist) && families(S) === 1) haste += Math.max(...alive(S).map((v) => v.def.purist || 0));
+    haste += (u.stars || 0) * RULES.starHaste;
     haste = Math.min(0.5 + (tk.hasteCap || 0), haste);
     if (u.def.solo && alive(S).length === 1) haste += u.def.solo.haste;
     let heatNet = Math.max(-0.5 - (opp(S).tk.coldCap || 0), Math.min(0.5, (S.heat - S.cold) * 0.02));
@@ -191,7 +192,8 @@ export function createBattle({ left, right, seed = 1 }) {
     const S = sides[u.side];
     const E = sides[1 - u.side];
     let n = act.n;
-    if (act.fixed) return n;
+    const sm = starMult(u.def, u.stars);
+    if (act.fixed) return sm !== 1 ? Math.round(n * sm) : n;
     if (act.k === u.def.main) n += u.bonus + u.perm + u.selfBonus;
     for (const v of neighbours(u)) if (v.def.aura && v.def.aura.k === act.k) n += v.def.aura.n;
     if (act.ramp) n += Math.min(act.ramp, Math.max(0, preview ? u.fires : u.fires - 1)) * (act.rampStep || 1);
@@ -216,6 +218,7 @@ export function createBattle({ left, right, seed = 1 }) {
     if (act.vsShield && E.shield > 0) n *= act.vsShield;
     const low = u.def.lowHp;
     if (low && low.k === act.k && S.hp < S.maxHp * low.below) n *= low.mult;
+    if (sm !== 1) n = Math.round(n * sm);
     if (scale !== 1) n = n > 0 ? Math.max(1, Math.round(n * scale)) : 0;
     return n;
   }
@@ -696,7 +699,7 @@ export function createBattle({ left, right, seed = 1 }) {
       case 'freeze':
         if (act.chance && !rng.chance(act.chance)) return;
         if (missed(u)) return;
-        return freezeTargets(u, act.target, tkAmount(u, 'freeze', act.dur * scale));
+        return freezeTargets(u, act.target, tkAmount(u, 'freeze', act.dur * scale * (1 + 0.25 * (u.stars || 0))));
       case 'sand': {
         if (missed(u)) return;
         const n = tkAmount(u, 'sand', num(u, act, scale));

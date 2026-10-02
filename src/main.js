@@ -1,6 +1,6 @@
 // Stackbrawl: game controller. Wires run state, the 3D table, input and fights.
 import * as THREE from 'three';
-import { CARDS, PACKS, TRACKS, TRACK_STEPS, RULES, wallSlots, fortressHp, eats } from './content.js';
+import { CARDS, PACKS, TRACKS, TRACK_STEPS, RULES, wallSlots, fortressHp, eats, starMult } from './content.js';
 import * as R from './run.js';
 import { TRINKETS, RACK_SLOTS, TK_BY, trinketSellValue } from './trinkets.js';
 import { TRINKET_METAL } from './gfx/draw.js';
@@ -171,7 +171,7 @@ function syncMarket() {
 // ------------------------------------------------------------------ card views
 
 function makeView(inst, x, z) {
-  const v = new CardView(scene, { id: inst.id, inst, perm: inst.perm, meals: inst.meals || 0 });
+  const v = new CardView(scene, { id: inst.id, inst, perm: inst.perm, meals: inst.meals || 0, stars: inst.stars || 0 });
   v.place(x, z);
   views.set(inst.uid, v);
   return v;
@@ -217,6 +217,7 @@ function syncViews() {
     v.inst = inst;
     if (v.perm !== inst.perm || v.id !== inst.id || v.meals !== (inst.meals || 0)) v.setFace(inst.id, inst.perm, inst.meals || 0);
     if ((v.stack || 1) !== (inst.stack || 1)) v.setStack(inst.stack || 1);
+    if ((v.stars || 0) !== (inst.stars || 0)) v.setStars(inst.stars || 0);
     if (!v.dragging && !v.busy && !v.flight) v.moveTo(h.x, h.z);
   }
   for (const [uid, v] of views) {
@@ -401,6 +402,11 @@ function evalDrop(v, x, z) {
         if (!best || d < best.d) best = { w, d };
       }
     }
+    if (best && v.market == null && def.kind === 'unit' && best.w.id === v.id && best.w.inst) {
+      const si = R.starInfo(S, v.inst.uid, best.w.inst.uid);
+      if (si?.ok) return { kind: 'star', target: best.w, stars: si.stars, cost: si.cost };
+      if (si) return { kind: 'bad', why: si.reason };
+    }
     if (best && v.market == null && def.kind === 'ingredient' && best.w.id === v.id) {
       const bi = R.bundleInfo(S, v.inst.uid, best.w.inst.uid);
       if (bi?.ok) return { kind: 'bundle', target: best.w, n: bi.n };
@@ -428,6 +434,10 @@ function evalDrop(v, x, z) {
 }
 
 function dropHint(d, v) {
+  if (d.kind === 'star') {
+    const broke = S.gold < d.cost;
+    return [`Star up → <span class="rare">${'★'.repeat(d.stars)}</span> · ${ui.ico('coin')} ${d.cost}${broke ? ' (not enough gold)' : ''}`, broke];
+  }
   if (d.kind === 'bundle') return [`Bundle ×${d.n}${d.n >= 2 ? ' · drop on the trinket rack to forge' : ''}`, false];
   if (d.kind === 'forge') {
     const cost = R.forgeCost(S, d.size);
@@ -595,7 +605,7 @@ function updateHover(cx, cy) {
   stage.className = card || tile ? 'point' : '';
   if (card) {
     if (card.trinket || card.enemyTrinket) ui.info(ui.trinketInfo(card.id, { sell: card.trinket && mode === 'shop' ? trinketSellValue(card.trinket) : null }));
-    else if (card.enemy || card.summoned) ui.info(ui.cardInfo(card.id, { inst: { perm: card.perm }, codex }));
+    else if (card.enemy || card.summoned) ui.info(ui.cardInfo(card.id, { inst: { perm: card.perm, stars: card.stars || 0 }, codex }));
     else if (card.pack) ui.info(ui.packInfo(card.pack, { price: false }));
     else if (card.market != null) ui.info(ui.cardInfo(card.id, { price: S.shop[card.market]?.price, codex }));
     else ui.info(ui.cardInfo(card.id, { inst: card.inst, sell: card.inst && mode === 'shop' ? R.sellPrice(S, card.inst) : null, codex, extra: bundleNote(card) }));
@@ -635,6 +645,7 @@ function moveDrag(e) {
   for (const w of views.values()) w.glowGoal = 0;
   if (d.kind === 'card') { d.target.glowGoal = 0.95; d.target.glowColor.set(d.info.rare ? '#ffe27a' : '#fff6c8'); }
   if (d.kind === 'eat') { d.target.glowGoal = 0.95; d.target.glowColor.set('#ffc59a'); }
+  if (d.kind === 'star') { d.target.glowGoal = 1; d.target.glowColor.set('#ffe27a'); }
   slotGlow.forEach((m, i) => { m.userData.goal = (d.kind === 'slot' && d.slot === i) ? 0.55 : (d.kind === 'bad' && d.slot === i) ? 0.25 : 0; m.material.color.set(d.kind === 'bad' ? '#e7a69c' : '#fff7c4'); });
   sellTile.hover = d.kind === 'sell' ? 1 : 0;
   shrineTile.hover = d.kind === 'feed' ? 1 : 0;
@@ -646,6 +657,11 @@ function moveDrag(e) {
 
 // The card a drop would produce: a combine's result, or the eater after its meal.
 function dropPreview(d) {
+  if (d.kind === 'star') {
+    const inst = d.target.inst;
+    const mult = starMult(CARDS[inst.id], d.stars);
+    return { key: `s:${inst.id}:${d.stars}`, id: inst.id, img: cardImageURL(inst.id, { perm: inst.perm, meals: inst.meals || 0, stars: d.stars }), label: `Becomes ${'★'.repeat(d.stars)}`, note: `All its numbers ×${mult}, and ${Math.round(d.stars * RULES.starHaste * 100)}% faster.` };
+  }
   if (d.kind === 'forge') {
     const ids = TK_BY[d.res][d.size];
     return { key: `f:${d.res}:${d.size}`, label: 'Forges one of', cards: ids.map((id) => ({ id, img: cardImageURL(id), name: TRINKETS[id].name, text: TRINKETS[id].text })) };
@@ -722,6 +738,24 @@ function endDrag() {
   }
 
   const inst = card.inst;
+  if (d.kind === 'star') {
+    const target = d.target;
+    const res = R.starUp(S, inst.uid, target.inst.uid);
+    if (!res.ok) { ui.toast(res.reason, 'bad', 'coin'); bounceBack(card); refresh(); return; }
+    views.delete(inst.uid);
+    card.busy = true;
+    leaving.add(card);
+    card.flyTo(target.pos.x, target.pos.z, { dur: 0.25, arc: 1.2, done: () => {
+      leaving.delete(card);
+      card.dispose(scene);
+      fx.sparkles(target.pos.clone().setY(0.4), { n: 14 + res.stars * 10, color: CARDS[target.id].rare ? '#ffe27a' : '#f2c64a', spread: 0.8 + res.stars * 0.3 });
+      sfx.rare();
+    } });
+    ui.toast(`${ui.esc(CARDS[target.id].name)} <span class="rare">${'★'.repeat(res.stars)}</span>`, 'good', 'bless');
+    sfx.coin();
+    refresh();
+    return;
+  }
   if (d.kind === 'bundle') {
     const target = d.target;
     const res = R.bundle(S, inst.uid, target.inst.uid);
@@ -1079,7 +1113,7 @@ async function startFight() {
   for (let i = 0; i < ghost.slots; i++) {
     const c = ghost.wall[i];
     if (!c || !CARDS[c.id]) continue;
-    const v = new CardView(scene, { id: c.id, perm: c.perm || 0 });
+    const v = new CardView(scene, { id: c.id, perm: c.perm || 0, stars: c.stars || 0 });
     v.place(arenaX(i), A.enemyZ - 3);
     v.flyTo(arenaX(i), A.enemyZ, { dur: 0.7, arc: 5, delay: 0.7 + i * 0.12, done: () => { fx.puffs(v.pos, { n: 6, s: 0.35 }); sfx.drop(); } });
     v.busy = true;

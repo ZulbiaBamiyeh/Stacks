@@ -19,9 +19,9 @@ const art = new Map();
 export const artURL = (id) => art.get(id)?.src || null;
 // A card face as an image URL, for DOM previews. Cached per look.
 const faceURLs = new Map();
-export function cardImageURL(id, { perm = 0, meals = 0 } = {}) {
-  const key = `${id}:${perm}:${meals}`;
-  if (!faceURLs.has(key)) faceURLs.set(key, (TRINKETS[id] ? D.drawTrinket(TRINKETS[id], { art: art.get(id) }) : D.drawCard(CARDS[id], { perm, meals, art: art.get(id) })).toDataURL('image/png'));
+export function cardImageURL(id, { perm = 0, meals = 0, stars = 0 } = {}) {
+  const key = `${id}:${perm}:${meals}:${stars}`;
+  if (!faceURLs.has(key)) faceURLs.set(key, (TRINKETS[id] ? D.drawTrinket(TRINKETS[id], { art: art.get(id) }) : D.drawCard(CARDS[id], { perm, meals, stars, art: art.get(id) })).toDataURL('image/png'));
   return faceURLs.get(key);
 }
 export async function loadArt() {
@@ -52,10 +52,10 @@ function faceTexture(key, draw) {
   }
   return t;
 }
-export function cardTexture(id, perm = 0, summon = false, meals = 0, live = null, stack = 1) {
+export function cardTexture(id, perm = 0, summon = false, meals = 0, live = null, stack = 1, stars = 0) {
   if (TRINKETS[id]) return faceTexture(`t:${id}`, () => D.drawTrinket(TRINKETS[id], { art: art.get(id) }));
   const lk = live ? Object.entries(live).map(([k, v]) => `${k}${v}`).join(',') : '';
-  return faceTexture(`c:${id}:${perm}:${summon}:${meals}:${lk}:${stack}`, () => D.drawCard(CARDS[id], { perm, art: art.get(id), summon, meals, live, stack }));
+  return faceTexture(`c:${id}:${perm}:${summon}:${meals}:${lk}:${stack}:${stars}`, () => D.drawCard(CARDS[id], { perm, art: art.get(id), summon, meals, live, stack, stars }));
 }
 export function packTexture(packId) {
   return faceTexture(`p:${packId}`, () => D.drawPack(packId));
@@ -91,7 +91,8 @@ function makeBar() {
 let layerCounter = 1;
 
 export class CardView {
-  constructor(scene, { id = null, pack = null, inst = null, perm = 0, summon = false, faceDown = false, meals = 0 }) {
+  constructor(scene, { id = null, pack = null, inst = null, perm = 0, summon = false, faceDown = false, meals = 0, stars = 0 }) {
+    this.stars = stars;
     this.id = id;
     this.meals = meals;
     this.pack = pack;
@@ -105,7 +106,7 @@ export class CardView {
     this.body = new THREE.Mesh(bodyGeo, bodyMat);
     this.body.castShadow = true;
     this.body.receiveShadow = true;
-    this.faceMat = new THREE.MeshLambertMaterial({ map: pack ? packTexture(pack) : cardTexture(id, perm, summon, meals), transparent: true });
+    this.faceMat = new THREE.MeshLambertMaterial({ map: pack ? packTexture(pack) : cardTexture(id, perm, summon, meals, null, 1, stars), transparent: true });
     this.face = new THREE.Mesh(faceGeo, this.faceMat);
     this.face.position.y = CARD.t + 0.001;
     this.face.receiveShadow = true;
@@ -157,12 +158,21 @@ export class CardView {
 
   get def() { return this.id ? CARDS[this.id] || TRINKETS[this.id] : null; }
 
+  setStars(n) {
+    n = n || 0;
+    if (n === (this.stars || 0)) return;
+    this.stars = n;
+    this.faceMat.map = cardTexture(this.id, this.perm, this.summon, this.meals, this.live, this.stack || 1, n);
+    this.faceMat.needsUpdate = true;
+    this.kick(0.25);
+  }
+
   // Bundles: the card shows a count and sits on a little pile of copies.
   setStack(n) {
     n = n || 1;
     if (n === (this.stack || 1)) return;
     this.stack = n;
-    this.faceMat.map = cardTexture(this.id, this.perm, this.summon, this.meals, this.live, n);
+    this.faceMat.map = cardTexture(this.id, this.perm, this.summon, this.meals, this.live, n, this.stars || 0);
     this.faceMat.needsUpdate = true;
     if (this.pile) this.tiltGroup.remove(this.pile);
     this.pile = new THREE.Group();
@@ -183,7 +193,7 @@ export class CardView {
     this.id = id;
     this.perm = perm;
     this.meals = meals;
-    this.faceMat.map = cardTexture(id, perm, this.summon, meals, this.live, this.stack || 1);
+    this.faceMat.map = cardTexture(id, perm, this.summon, meals, this.live, this.stack || 1, this.stars || 0);
     this.faceMat.needsUpdate = true;
   }
 
@@ -216,7 +226,7 @@ export class CardView {
     const grew = live && this.live && Object.keys(live).some((k) => live[k] > (this.live[k] ?? live[k]));
     this.liveKey = key;
     this.live = live;
-    this.faceMat.map = cardTexture(this.id, this.perm, this.summon, this.meals, live, this.stack || 1);
+    this.faceMat.map = cardTexture(this.id, this.perm, this.summon, this.meals, live, this.stack || 1, this.stars || 0);
     this.faceMat.needsUpdate = true;
     if (grew) this.kick(0.06);
   }

@@ -75,7 +75,10 @@ export function botGhost(day, wins = 0, losses = 0, r = createRng(day * 7919)) {
     const pool = themed.length && r.chance(0.65) ? themed : units.filter((c) => c.tier === tier);
     const def = r.pick(pool.length ? pool : units);
     const m = meals(def);
-    wall[i] = { id: def.id, perm: (def.perm ? Math.floor((day - 1) / 2) : 0) + Math.floor(m / (def.eats?.per || 1)), meals: m, owned: Math.floor(day / 2) };
+    // later ghosts have starred units too
+    const roll = r.next();
+    const stars = day >= 11 && roll < 0.04 ? 3 : day >= 8 && roll < 0.1 ? 2 : day >= 5 && roll < 0.18 ? 1 : 0;
+    wall[i] = { id: def.id, perm: (def.perm ? Math.floor((day - 1) / 2) : 0) + Math.floor(m / (def.eats?.per || 1)), meals: m, owned: Math.floor(day / 2), stars };
   }
   // Shuffle into slots so empty spaces vary.
   for (let i = wall.length - 1; i > 0; i--) {
