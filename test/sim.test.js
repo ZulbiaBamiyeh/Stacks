@@ -24,15 +24,15 @@ test('battles are deterministic for a seed', () => {
   assert.equal(a.sides[0].hp, b.sides[0].hp);
 });
 
-test('villager deals 2 damage every 2s', () => {
+test('villager deals 2 damage every 3s', () => {
   const b = createBattle({ left: side(['villager']), right: side([]), seed: 1 });
-  while (b.t < 2.01) b.step();
+  while (b.t < 3.01) b.step();
   assert.equal(b.sides[1].hp, 98);
 });
 
 test('shield absorbs damage, poison ignores it', () => {
   const b = createBattle({ left: side(['villager', 'scorpion']), right: side(['direWolf']), seed: 1 });
-  while (b.t < 2.01) b.step();
+  while (b.t < 3.01) b.step();
   assert.equal(b.sides[1].hp, 100);
   assert.equal(b.sides[1].shield, 8);
 });
@@ -40,7 +40,7 @@ test('shield absorbs damage, poison ignores it', () => {
 test('sudden death ends stalled fights', () => {
   const b = createBattle({ left: side(['guard']), right: side(['guard']), seed: 1 });
   b.runToEnd();
-  assert.ok(b.t < 50);
+  assert.ok(b.t < 70);
 });
 
 test('recipes are symmetric', () => {
@@ -59,13 +59,15 @@ test('run: pack, open, combine, wall, fight', () => {
   assert.equal(s.table.length, 3);
   const v = run.makeInst(s, 'villager'); s.table.push(v);
   const w = run.makeInst(s, 'wood'); s.table.push(w);
+  const goldBefore = s.gold;
   const c = run.combine(s, w.uid, v.uid);
   assert.ok(c.ok);
   assert.equal(c.inst.id, 'archer');
+  assert.equal(s.gold, goldBefore - 2);
   assert.ok(run.toWall(s, c.inst.uid, 0).ok);
   const res = run.finishFight(s, true, 'bot');
   assert.equal(s.day, 2);
-  assert.equal(res.total, 10);
+  assert.equal(res.total, 7);
 });
 
 test('scaling carries over when combined', () => {
@@ -74,6 +76,7 @@ test('scaling carries over when combined', () => {
   run.finishFight(s, false, 'bot');
   assert.equal(sk.perm, 1);
   const bone = run.makeInst(s, 'bone'); s.table.push(bone);
+  s.gold = 20;
   const r = run.combine(s, bone.uid, sk.uid);
   assert.equal(r.inst.id, 'necromancer');
   assert.equal(r.inst.perm, 1);
@@ -89,15 +92,15 @@ test('bot ghosts fill a sensible wall', () => {
 
 test('burn halves each tick instead of snowballing', () => {
   const b = createBattle({ left: side(['pyromancer']), right: side([], { hp: 1000 }), seed: 1 });
-  while (b.t < 2.6) b.step();
-  assert.equal(b.sides[1].burn, 6);
-  while (b.t < 3.55) b.step();
+  while (b.t < 3.76) b.step();
   assert.equal(b.sides[1].burn, 3);
+  while (b.t < 4.55) b.step();
+  assert.equal(b.sides[1].burn, 1);
 });
 
 test('tick damage is credited to the units that applied it', () => {
   const b = createBattle({ left: side(['pyromancer', 'scorpion', 'villager']), right: side([], { hp: 100000 }), seed: 1 });
-  while (b.t < 25) b.step();
+  while (b.t < 40) b.step();
   const dealt = b.roster[0].reduce((a, u) => a + u.dealt, 0);
   const taken = 100000 - b.sides[1].hp;
   assert.ok(Math.abs(dealt - taken) < 1, `${dealt} vs ${taken}`);
@@ -107,7 +110,7 @@ test('tick damage is credited to the units that applied it', () => {
 test('neighbour auras only touch adjacent units', () => {
   const near = createBattle({ left: side(['smith', 'villager']), right: side([], { hp: 1000 }), seed: 1 });
   const far = createBattle({ left: side(['smith', null, 'villager']), right: side([], { hp: 1000 }), seed: 1 });
-  while (near.t < 2.01) { near.step(); far.step(); }
+  while (near.t < 3.01) { near.step(); far.step(); }
   assert.equal(1000 - near.sides[1].hp, 1 + 3);
   assert.equal(1000 - far.sides[1].hp, 1 + 2);
 });
@@ -133,4 +136,25 @@ test('track packs hold only tier-1 cards, so they cannot be sold for profit', as
     for (const [id] of p.pool) assert.ok(CARDS[id].tier <= 1, `${p.id} has ${id}`);
     assert.ok(p.size <= p.price, p.id);
   }
+});
+
+test('combining costs gold by result tier and fails when broke', () => {
+  const s = run.newRun(4);
+  s.gold = 1;
+  const v = run.makeInst(s, 'villager'); s.table.push(v);
+  const w = run.makeInst(s, 'wood'); s.table.push(w);
+  assert.ok(!run.combine(s, w.uid, v.uid).ok);
+  assert.equal(s.table.length, 2);
+});
+
+test('alpha rallies other wolves every attack', () => {
+  const b = createBattle({ left: side(['alpha', 'wolf']), right: side([], { hp: 1000 }), seed: 1 });
+  while (b.t < 9.05) b.step();
+  assert.equal(b.sides[0].units[1].bonus, 3);
+});
+
+test('heals no longer cleanse burn or poison', () => {
+  const b = createBattle({ left: side(['scorpion']), right: side(['healer'], { hp: 1000 }), seed: 1 });
+  while (b.t < 4.6) b.step();
+  assert.equal(b.sides[1].poison, 1);
 });

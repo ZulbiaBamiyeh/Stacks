@@ -10,6 +10,15 @@ live roster (every card, recipe and pack as the code has them) is generated into
 
 Changes from the design doc so far:
 
+- **Combining costs gold**: 2 for a tier II result, 4 for tier III, 6 for tier
+  IV or a rare. Income is **5 gold a day** (+2 for a win).
+- **Everything in a fight is 1.5x slower** than the doc's numbers (cooldowns,
+  freezes, burn every 1.5s, poison every 3s, sudden death from 45s). Card text
+  is rewritten automatically from the doc's base numbers (`RULES.time`).
+- **Healing no longer removes burn, poison, Sand or Cold.**
+- **Every card has its own hook**; `node tools/audit.mjs` lists any units that
+  are just plain numbers with the same shape as another card.
+
 - **Burn halves each tick** (rounded up) instead of losing 1 stack, so stacking
   burn grows linearly instead of snowballing.
 - **Track packs hold only tier-1 base creatures** plus ingredients. Each base

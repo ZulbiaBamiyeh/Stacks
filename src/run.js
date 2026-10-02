@@ -2,7 +2,7 @@
 // Pure data in, data out (no DOM) so it can be saved and tested.
 import {
   CARDS, PACKS, BASE_PACKS, TRACKS, TRACK_STEPS, TRACK_RARE_CHANCE, RULES, INGREDIENTS,
-  BASE_UNITS, recipeFor, sellValue, fortressHp, wallSlots, eats,
+  BASE_UNITS, recipeFor, sellValue, fortressHp, wallSlots, eats, combineCost,
 } from './content.js';
 import { createRng, randomSeed } from './rng.js';
 
@@ -186,15 +186,19 @@ export function combineInfo(s, aId, bId) {
   const r = recipeFor(aId, bId);
   if (!r) return null;
   const chance = r.rare ? Math.min(RULES.rareCap, r.chance + rareBonus(s)) : 0;
-  return { ...r, chance };
+  return { ...r, chance, cost: combineCost(r.result) };
 }
 
-export function combine(s, aUid, bUid) {
+export function combine(s, aUid, bUid, { prepaid = false } = {}) {
   const a = find(s, aUid);
   const b = find(s, bUid);
   if (!a || !b || a === b) return { ok: false };
   const info = combineInfo(s, a.inst.id, b.inst.id);
   if (!info) return { ok: false, reason: 'Nothing happens' };
+  if (!prepaid) {
+    if (s.gold < info.cost) return { ok: false, reason: `Combining costs ${info.cost} gold` };
+    s.gold -= info.cost;
+  }
   let id = info.result;
   let rare = false;
   if (info.rare) {
@@ -301,7 +305,10 @@ export function finishFight(s, won, opponentName) {
   // "+N after each fight" scaling for units that fought.
   const tombKing = s.wall.some((c) => c && CARDS[c.id].tombKing);
   for (const c of s.wall) {
-    if (c && CARDS[c.id].perm) c.perm += CARDS[c.id].perm * (tombKing ? 2 : 1);
+    if (!c) continue;
+    const d = CARDS[c.id];
+    const grow = (d.perm || 0) + (won ? d.permWin || 0 : d.permLoss || 0);
+    if (grow) c.perm += grow * (tombKing ? 2 : 1);
   }
 
   lines.push(['Daily wage', RULES.dayGold]);

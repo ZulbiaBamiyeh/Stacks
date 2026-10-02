@@ -3,13 +3,13 @@
 // Actions are built with the helpers below and interpreted by sim.js.
 
 export const dmg = (n, o = {}) => ({ k: 'dmg', n, ...o });
-export const shield = (n) => ({ k: 'shield', n });
+export const shield = (n, o = {}) => ({ k: 'shield', n, ...o });
 export const heal = (n, o = {}) => ({ k: 'heal', n, ...o });
 export const burn = (n, o = {}) => ({ k: 'burn', n, ...o });
 export const poison = (n, o = {}) => ({ k: 'poison', n, ...o });
-export const freeze = (target, dur) => ({ k: 'freeze', target, dur });
-export const sand = (n) => ({ k: 'sand', n });
-export const heat = (n) => ({ k: 'heat', n });
+export const freeze = (target, dur, o = {}) => ({ k: 'freeze', target, dur, ...o });
+export const sand = (n, o = {}) => ({ k: 'sand', n, ...o });
+export const heat = (n, o = {}) => ({ k: 'heat', n, ...o });
 export const cold = (n) => ({ k: 'cold', n });
 export const luck = (n) => ({ k: 'luck', n });
 export const bless = (n, o = {}) => ({ k: 'bless', n, ...o });
@@ -17,6 +17,7 @@ export const summon = (id, max) => ({ k: 'summon', id, max });
 export const charge = (target, s) => ({ k: 'charge', target, s });
 export const special = (fx, o = {}) => ({ k: 'special', fx, ...o });
 export const alt = (...list) => ({ k: 'alt', list });
+export const delay = (target, s) => ({ k: 'delay', target, s });
 
 // ---------------------------------------------------------------- ingredients
 
@@ -44,106 +45,106 @@ const CREATURE = ['creature'];
 
 // Base units
 U('villager', 'Villager', 1, 'person', '2 damage every 2s', { t: [[2, dmg(2)]] });
-U('wolf', 'Wolf', 1, 'wolf', '3 damage every 2.5s', { t: [[2.5, dmg(3)]], tags: CREATURE });
+U('wolf', 'Wolf', 1, 'wolf', '2 damage every 2s, +1 for each other wolf on your wall', { t: [[2, dmg(2, { perAlly: { kin: 'wolf', n: 1 } })]], tags: CREATURE });
 U('scorpion', 'Scorpion', 1, 'scorpion', '1 poison every 3s', { t: [[3, poison(1)]], tags: CREATURE });
 U('fairy', 'Fairy', 1, 'fairy', '2 heal every 2s', { t: [[2, heal(2)]] });
 
 // Villager tree: tier 2
-U('archer', 'Archer', 2, 'person', '3 damage every 1.2s', { t: [[1.2, dmg(3)]] });
+U('archer', 'Archer', 2, 'person', '2 damage every 1.2s. Hits twice while the enemy has no shield', { t: [[1.2, dmg(2, { twiceNoShield: true })]] });
 U('guard', 'Guard', 2, 'person', '6 shield every 2s', { t: [[2, shield(6)]] });
-U('healer', 'Healer', 2, 'person', '6 heal every 2s', { t: [[2, heal(6)]] });
+U('healer', 'Healer', 2, 'person', '4 heal every 2s, +1 for each other unit that heals', { t: [[2, heal(4, { perAlly: { applies: 'heal', n: 1 } })]] });
 U('fireMage', 'Fire Mage', 2, 'person', '3 burn every 2s', { t: [[2, burn(3)]] });
 U('skeleton', 'Skeleton', 2, 'person', '3 damage every 2s. +1 damage permanently after each fight', { t: [[2, dmg(3)]], perm: 1 });
 U('merchant', 'Merchant', 2, 'person', '1 damage every 2s. +2 gold per day', { t: [[2, dmg(1)]], gold: 2 });
-U('hunter', 'Hunter', 2, 'person', '5 damage every 2s', { t: [[2, dmg(5)]] });
+U('hunter', 'Hunter', 2, 'person', '3 damage every 2s. +1 damage each time it hits this fight (max +6)', { t: [[2, dmg(3, { ramp: 6 })]] });
 U('druid', 'Druid', 2, 'person', '3 heal and 1 poison every 3s', { t: [[3, heal(3), poison(1)]] });
-U('scout', 'Scout', 2, 'person', '2 damage every 0.8s', { t: [[0.8, dmg(2)]] });
-U('mage', 'Mage', 2, 'person', '5 damage every 2s', { t: [[2, dmg(5)]] });
+U('scout', 'Scout', 2, 'person', '1 damage every 0.8s. Each hit sets back a random enemy unit by 0.2s', { t: [[0.8, dmg(1, { delay: { s: 0.2 } })]] });
+U('mage', 'Mage', 2, 'person', '3 damage every 2s. Triple damage while the enemy has shield', { t: [[2, dmg(3, { vsShield: 3 })]] });
 
 // Villager tree: tier 3
-U('fireArcher', 'Fire Archer', 3, 'person', '3 damage and 1 burn every 1.2s', { t: [[1.2, dmg(3), burn(1)]] });
-U('ranger', 'Ranger', 3, 'person', '8 damage every 1.8s', { t: [[1.8, dmg(8)]] });
+U('fireArcher', 'Fire Archer', 3, 'person', '3 damage every 1.2s. +3 damage while the enemy is burning', { t: [[1.2, dmg(3, { ifEnemy: ['burn', 3] })]] });
+U('ranger', 'Ranger', 3, 'person', '4 damage every 1.5s. Double damage with an empty slot or wall edge beside it', { t: [[1.5, dmg(4, { edge: 2 })]] });
 U('sharpshooter', 'Sharpshooter', 3, 'person', '3 damage every 1s. Every 4th shot deals triple', { t: [[1, dmg(3, { nth: 4, nthMult: 3 })]] });
 U('frostArcher', 'Frost Archer', 3, 'person', '4 damage every 1.2s. Each hit freezes a random enemy unit for 0.5s', { t: [[1.2, dmg(4), freeze('random', 0.5)]] });
-U('knight', 'Knight', 3, 'person', '5 damage every 2s and 5 shield every 2.5s', { t: [[2, dmg(5)], [2.5, shield(5)]] });
-U('paladin', 'Paladin', 3, 'person', '7 shield and 5 heal every 2.5s', { t: [[2.5, shield(7), heal(5)]] });
-U('spearman', 'Spearman', 3, 'person', '4 damage every 1.5s and 4 shield every 3s', { t: [[1.5, dmg(4)], [3, shield(4)]] });
+U('knight', 'Knight', 3, 'person', '4 damage and 4 shield every 2.5s. Both +1 per action this fight (max +4)', { t: [[2.5, dmg(4, { ramp: 4 }), shield(4, { ramp: 4 })]] });
+U('paladin', 'Paladin', 3, 'person', '7 shield every 2.5s, then heals 1 per 5 shield you have', { t: [[2.5, shield(7), heal(0, { perShield: 5 })]] });
+U('spearman', 'Spearman', 3, 'person', '3 damage every 1.5s. Hits through shield: destroys 6 shield first', { t: [[1.5, special('breakShield', { n: 6 }), dmg(3)]], main: 'dmg' });
 U('warden', 'Warden', 3, 'person', "8 shield every 2s. Your units can't be frozen while you have shield", { t: [[2, shield(8)]], warden: true });
-U('shaman', 'Shaman', 3, 'person', '10 heal every 2.2s', { t: [[2.2, heal(10)]] });
+U('shaman', 'Shaman', 3, 'person', '6 heal every 2.2s. Each heal gives a random friendly unit +1 to its main number', { t: [[2.2, heal(6), bless(1)]] });
 U('alchemist', 'Alchemist', 3, 'person', 'Alternates 8 heal and 8 shield every 2s', { t: [[2, alt(heal(8), shield(8))]] });
 U('oracle', 'Oracle', 3, 'person', '4 heal every 2s. Once per day, your next combine gets +20% rare odds', { t: [[2, heal(4)]], oracle: 20 });
-U('pyromancer', 'Pyromancer', 3, 'person', '6 burn every 2.5s', { t: [[2.5, burn(6)]] });
-U('flameDancer', 'Flame Dancer', 3, 'person', '1 burn every 0.6s', { t: [[0.6, burn(1)]] });
+U('pyromancer', 'Pyromancer', 3, 'person', '3 burn every 2.5s, +1 for each other friendly unit that applies burn', { t: [[2.5, burn(3, { perAlly: { applies: 'burn', n: 1 } })]] });
+U('flameDancer', 'Flame Dancer', 3, 'person', '1 burn every 0.8s. Acts 40% faster while the enemy is burning', { t: [[0.8, burn(1)]], burningHaste: 0.4 });
 U('ashCaller', 'Ash Caller', 3, 'person', '2 damage and 2 burn every 2s. +1 burn permanently after each fight', { t: [[2, dmg(2), burn(2)]], perm: 1, main: 'burn' });
-U('necromancer', 'Necromancer', 3, 'person', '1 poison every 3s. +1 poison per hit permanently after each fight', { t: [[3, poison(1)]], perm: 1 });
-U('boneKnight', 'Bone Knight', 3, 'person', '4 damage and 4 shield every 2s. +1 damage permanently after each fight', { t: [[2, dmg(4), shield(4)]], perm: 1 });
+U('necromancer', 'Necromancer', 3, 'person', '1 poison every 3s. Every 6s, summons a Skeleton into an empty slot (max 2). +1 poison permanently after each fight', { t: [[3, poison(1)], [6, summon('skeleton', 2)]], perm: 1 });
+U('boneKnight', 'Bone Knight', 3, 'person', '4 damage and 4 shield every 2s. +1 shield permanently after each fight', { t: [[2, shield(4), dmg(4)]], perm: 1, main: 'shield' });
 U('banker', 'Banker', 3, 'person', 'No attack. At day\'s end, +1 gold per 5 gold held (max +4)', { banker: true });
 U('mercenary', 'Mercenary', 3, 'person', 'Every 2s, deals 2 damage plus 1 per 3 gold held', { t: [[2, dmg(2, { perGold: 3 })]] });
 U('beastmaster', 'Beastmaster', 3, 'person', '4 damage every 2s. Your creatures get +25% haste', { t: [[2, dmg(4)]], creatureHaste: 0.25 });
-U('trapper', 'Trapper', 3, 'person', '4 damage every 2s. Freezes a random enemy unit for 1s every 4s', { t: [[2, dmg(4)], [4, freeze('random', 1)]] });
-U('hexer', 'Hexer', 3, 'person', '2 poison every 3s', { t: [[3, poison(2)]] });
-U('groveKeeper', 'Grove Keeper', 3, 'person', '6 heal and 1 poison every 2.5s', { t: [[2.5, heal(6), poison(1)]] });
+U('trapper', 'Trapper', 3, 'person', '4 damage every 2s. Every 4s, freezes the enemy unit with the shortest cooldown for 1s', { t: [[2, dmg(4)], [4, freeze('fastest', 1)]] });
+U('hexer', 'Hexer', 3, 'person', '1 poison every 3s. Whenever the enemy heals, they gain 2 poison', { t: [[3, poison(1)]], onEnemyHeal: [poison(2)] });
+U('groveKeeper', 'Grove Keeper', 3, 'person', '4 heal every 2.5s. Heals 1 whenever a neighbour acts', { t: [[2.5, heal(4)]], onNeighbourAct: [heal(1)] });
 U('sporeDruid', 'Spore Druid', 3, 'person', "Every 3s, adds poison equal to 20% of the enemy's current poison (min 1)", { t: [[3, poison(1, { pct: 0.2, min: 1 })]] });
 U('windrunner', 'Windrunner', 3, 'person', '2 damage every 0.8s. All your units get +10% haste', { t: [[0.8, dmg(2)]], haste: 0.1 });
-U('wolfRider', 'Wolf Rider', 3, 'wolf', '4 damage every 1s', { t: [[1, dmg(4)]], tags: CREATURE });
+U('wolfRider', 'Wolf Rider', 3, 'wolf', '3 damage every 1.2s. Its first attack happens at once and deals triple', { t: [[1.2, dmg(3, { firstMult: 3 })]], firstStrike: true, tags: CREATURE });
 U('iceMage', 'Ice Mage', 3, 'person', "3 damage every 2s. Freezes the enemy's highest-tier unit for 1.5s every 4s. Adds 2 Cold per action", { t: [[2, dmg(3), cold(2)], [4, freeze('top', 1.5), cold(2)]] });
-U('stormMage', 'Storm Mage', 3, 'person', '3 damage every 0.7s', { t: [[0.7, dmg(3)]] });
-U('warlock', 'Warlock', 3, 'person', '6 damage every 2s. Double damage while your fortress is below 50%', { t: [[2, dmg(6)]], lowHp: { below: 0.5, mult: 2, k: 'dmg' } });
+U('stormMage', 'Storm Mage', 3, 'person', '1 damage every 0.5s. Each hit has a 15% chance to freeze a random enemy unit for 0.6s', { t: [[0.5, dmg(1), freeze('random', 0.6, { chance: 0.15 })]] });
+U('warlock', 'Warlock', 3, 'person', 'Every 2s, pays 3 fortress HP to deal 9 damage', { t: [[2, special('pay', { hp: 3, dmg: 9 })]] });
 
 // Villager tree: tier 4
-U('champion', 'Champion', 4, 'person', '8 damage every 2.5s and 8 shield every 3s', { t: [[2.5, dmg(8)], [3, shield(8)]] });
+U('champion', 'Champion', 4, 'person', '6 damage every 2.5s, +1 per 4 shield you have. 6 shield every 3s', { t: [[2.5, dmg(6, { perShield: 4 })], [3, shield(6)]] });
 U('flameKnight', 'Flame Knight', 4, 'person', '5 damage and 2 burn every 2s, 5 shield every 2.5s', { t: [[2, dmg(5), burn(2)], [2.5, shield(5)]] });
-U('infernoMage', 'Inferno Mage', 4, 'person', '9 burn every 3s', { t: [[3, burn(9)]] });
-U('archmage', 'Archmage', 4, 'person', '4 damage every 2s. Freezes the 2 highest-tier enemy units for 1.5s every 4s', { t: [[2, dmg(4)], [4, freeze('top2', 1.5)]] });
-U('wraith', 'Wraith', 4, 'spirit', "Freezes the enemy's fastest unit for 1s every 3s", { t: [[3, freeze('fastest', 1)]] });
-U('hawkeye', 'Hawkeye', 4, 'person', '10 damage every 2s, ignores shield', { t: [[2, dmg(10, { pierce: true })]] });
+U('infernoMage', 'Inferno Mage', 4, 'person', "4 burn every 3s, then the enemy's burn ticks once immediately", { t: [[3, burn(4), special('tickBurn')]] });
+U('archmage', 'Archmage', 4, 'person', 'Freezes the 2 highest-tier enemy units for 1.5s every 4s. Every 2s, deals 2 damage plus 4 per frozen enemy unit', { t: [[2, dmg(2, { perFrozen: 4 })], [4, freeze('top2', 1.5)]] });
+U('wraith', 'Wraith', 4, 'spirit', 'Every 3s, freezes the enemy unit that acted most recently for 1.5s', { t: [[3, freeze('last', 1.5)]] });
+U('hawkeye', 'Hawkeye', 4, 'person', '8 damage every 2.5s, ignores shield. Double damage while the enemy is below 50%', { t: [[2.5, dmg(8, { pierce: true, execute: 2 })]] });
 
 // Wolf tree
-U('wolfPack', 'Wolf Pack', 2, 'wolf', '3 damage every 1.1s', { t: [[1.1, dmg(3)]], tags: CREATURE });
-U('hellhound', 'Hellhound', 2, 'wolf', '4 damage and 1 burn every 2.5s', { t: [[2.5, dmg(4), burn(1)]], tags: CREATURE });
+U('wolfPack', 'Wolf Pack', 2, 'wolf', 'Every 2s, bites once for each wolf on your wall (2 damage each, max 4 bites)', { t: [[2, special('pack', { n: 2, max: 4 })]], main: 'dmg', tags: CREATURE });
+U('hellhound', 'Hellhound', 2, 'wolf', '3 damage and 1 burn every 2.5s. Damage +1 per 3 burn on the enemy', { t: [[2.5, dmg(3, { perEnemy: ['burn', 3] }), burn(1)]], tags: CREATURE });
 U('direWolf', 'Dire Wolf', 2, 'wolf', '5 damage every 2.5s. Starts each fight with 10 shield', { t: [[2.5, dmg(5)]], startShield: 10, tags: CREATURE });
 U('griffin', 'Griffin', 2, 'wolf', '4 damage every 1.5s, ignores shield', { t: [[1.5, dmg(4, { pierce: true })]], tags: CREATURE });
-U('graveWolf', 'Grave Wolf', 2, 'wolf', '3 damage every 2s. +1 damage permanently after each fight', { t: [[2, dmg(3)]], perm: 1, tags: CREATURE });
-U('sandStalker', 'Sand Stalker', 2, 'wolf', '3 damage and 1 poison every 3s', { t: [[3, dmg(3), poison(1)]], tags: CREATURE });
+U('graveWolf', 'Grave Wolf', 2, 'wolf', '3 damage every 2s. +2 damage permanently after each fight you lose', { t: [[2, dmg(3)]], permLoss: 2, tags: CREATURE });
+U('sandStalker', 'Sand Stalker', 2, 'wolf', '3 damage every 2.5s, +1 per 3 Sand on the enemy', { t: [[2.5, dmg(3, { perEnemy: ['sand', 3] })]], tags: CREATURE });
 U('werewolf', 'Werewolf', 2, 'wolf', '5 damage every 2s. Double damage while your fortress is below 50%', { t: [[2, dmg(5)]], lowHp: { below: 0.5, mult: 2, k: 'dmg' }, tags: CREATURE });
-U('alpha', 'Alpha', 3, 'wolf', '4 damage every 1s. Your other creatures deal +1 damage', { t: [[1, dmg(4)]], alpha: 1, tags: CREATURE });
+U('alpha', 'Alpha', 3, 'wolf', '3 damage every 2s. Each time it attacks, your other wolves get +1 damage for the rest of the fight (max +5)', { t: [[2, dmg(3), special('rally', { kin: 'wolf', n: 1, max: 5 })]], tags: CREATURE });
 U('cerberus', 'Cerberus', 3, 'wolf', 'Every 3s, attacks 3 times for 3 damage and 1 burn each', { t: [[3, dmg(3), burn(1), dmg(3), burn(1), dmg(3), burn(1)]], tags: CREATURE });
 U('frostWolf', 'Frost Wolf', 3, 'wolf', '5 damage every 2s. Each hit freezes a random enemy unit for 1s', { t: [[2, dmg(5), freeze('random', 1)]], tags: CREATURE });
-U('skyGriffin', 'Sky Griffin', 3, 'wolf', '4 damage every 1s, ignores shield', { t: [[1, dmg(4, { pierce: true })]], tags: CREATURE });
-U('boneHound', 'Bone Hound', 3, 'wolf', '4 damage every 1.5s. +1 damage permanently after each fight', { t: [[1.5, dmg(4)]], perm: 1, tags: CREATURE });
-U('desertStalker', 'Desert Stalker', 3, 'wolf', '4 damage and 2 poison every 3s', { t: [[3, dmg(4), poison(2)]], tags: CREATURE });
+U('skyGriffin', 'Sky Griffin', 3, 'wolf', 'Every 3s, dives for 3 hits of 3 damage, ignoring shield', { t: [[3, dmg(3, { hits: 3, pierce: true })]], tags: CREATURE });
+U('boneHound', 'Bone Hound', 3, 'wolf', '3 damage every 1.5s, +1 per other wolf. +1 damage permanently after each fight', { t: [[1.5, dmg(3, { perAlly: { kin: 'wolf', n: 1 } })]], perm: 1, tags: CREATURE });
+U('desertStalker', 'Desert Stalker', 3, 'wolf', '4 damage every 3s, plus 1 poison per 2 Sand on the enemy', { t: [[3, dmg(4), poison(0, { perEnemy: ['sand', 2] })]], tags: CREATURE });
 U('moonhowler', 'Moonhowler', 3, 'wolf', '4 damage every 1.5s. While below 50%, your creatures get +25% haste', { t: [[1.5, dmg(4)]], lowCreatureHaste: 0.25, tags: CREATURE });
 
 // Scorpion tree
-U('scorpionSwarm', 'Scorpion Swarm', 2, 'scorpion', '1 poison every 1.5s', { t: [[1.5, poison(1)]], tags: CREATURE });
-U('deathstalker', 'Deathstalker', 2, 'scorpion', '2 poison every 3.5s', { t: [[3.5, poison(2)]], tags: CREATURE });
+U('scorpionSwarm', 'Scorpion Swarm', 2, 'scorpion', '1 poison every 2s, +1 per other scorpion on your wall', { t: [[2, poison(1, { perAlly: { kin: 'scorpion', n: 1 } })]], tags: CREATURE });
+U('deathstalker', 'Deathstalker', 2, 'scorpion', "2 poison every 3.5s. Each sting freezes the enemy's highest-tier unit for 0.5s", { t: [[3.5, poison(2), freeze('top', 0.5)]], tags: CREATURE });
 U('fireScorpion', 'Fire Scorpion', 2, 'scorpion', '1 poison and 2 burn every 3s', { t: [[3, poison(1), burn(2)]], tags: CREATURE });
 U('armoredScorpion', 'Armored Scorpion', 2, 'scorpion', '1 poison every 3s and 5 shield every 2.5s', { t: [[3, poison(1)], [2.5, shield(5)]], tags: CREATURE });
 U('sporeScorpion', 'Spore Scorpion', 2, 'scorpion', '1 poison every 2.5s. Each hit adds +1 more per 10 poison the enemy has', { t: [[2.5, poison(1, { per10: 1 })]], tags: CREATURE });
-U('nightScorpion', 'Night Scorpion', 2, 'scorpion', '2 poison every 3s. Double poison while your fortress is below 50%', { t: [[3, poison(2)]], lowHp: { below: 0.5, mult: 2, k: 'poison' }, tags: CREATURE });
+U('nightScorpion', 'Night Scorpion', 2, 'scorpion', '1 poison every 3s, +1 per 15 HP your fortress is missing', { t: [[3, poison(1, { perMissing: 15 })]], tags: CREATURE });
 U('scorpionNest', 'Scorpion Nest', 3, 'scorpion', '2 poison every 1.8s. When it acts, summons a Scorpion into an empty slot (max 2 per fight)', { t: [[1.8, poison(2), summon('scorpion', 2)]], tags: CREATURE });
-U('tombStalker', 'Tomb Stalker', 3, 'scorpion', '2 poison every 3s. +1 poison per hit permanently after each fight', { t: [[3, poison(2)]], perm: 1, tags: CREATURE });
-U('lavaScorpion', 'Lava Scorpion', 3, 'scorpion', '2 poison and 3 burn every 3s', { t: [[3, poison(2), burn(3)]], tags: CREATURE });
-U('shellScorpion', 'Shell Scorpion', 3, 'scorpion', '2 poison every 3s and 10 shield every 3s', { t: [[3, poison(2), shield(10)]], tags: CREATURE });
-U('fungalNest', 'Fungal Nest', 3, 'scorpion', "Every 3s, adds poison equal to 15% of the enemy's current poison (min 2, max 6)", { t: [[3, poison(2, { pct: 0.15, min: 2, max: 6 })]], tags: CREATURE });
+U('tombStalker', 'Tomb Stalker', 3, 'scorpion', '2 poison every 3s. +1 poison permanently after each fight you win', { t: [[3, poison(2)]], permWin: 1, tags: CREATURE });
+U('lavaScorpion', 'Lava Scorpion', 3, 'scorpion', '2 poison every 3s, plus 1 burn per 3 poison on the enemy', { t: [[3, poison(2), burn(0, { perEnemy: ['poison', 3] })]], tags: CREATURE });
+U('shellScorpion', 'Shell Scorpion', 3, 'scorpion', '8 shield every 3s. Whenever an enemy hits your shield, they gain 1 poison', { t: [[3, shield(8)]], onShieldHit: [poison(1)], tags: CREATURE });
+U('fungalNest', 'Fungal Nest', 3, 'scorpion', '1 poison every 2s. Every time enemy poison ticks, adds 1 more', { t: [[2, poison(1)]], onEnemyPoisonTick: [poison(1)], tags: CREATURE });
 
 // Fairy tree
 U('fairyRing', 'Fairy Ring', 2, 'fairy', 'Bless a random friendly unit every 1.5s', { t: [[1.5, bless(1)]] });
-U('dryad', 'Dryad', 2, 'fairy', '4 heal every 1.5s', { t: [[1.5, heal(4)]] });
+U('dryad', 'Dryad', 2, 'fairy', '3 heal every 1.5s. Each heal also gives 1 shield', { t: [[1.5, heal(3, { shieldToo: 1 })]] });
 U('treant', 'Treant', 2, 'fairy', '6 shield and 2 heal every 2.5s', { t: [[2.5, shield(6), heal(2)]] });
 U('wisp', 'Wisp', 2, 'fairy', '2 burn every 2s. Freezes a random enemy unit for 1s every 4s', { t: [[2, burn(2)], [4, freeze('random', 1)]] });
-U('pixie', 'Pixie', 2, 'fairy', '2 heal every 2s. All your units get +10% haste', { t: [[2, heal(2)]], haste: 0.1 });
+U('pixie', 'Pixie', 2, 'fairy', '2 heal every 2s. Every 2s, charges a random friendly unit 0.4s', { t: [[2, heal(2), charge('random', 0.4)]] });
 U('frostFairy', 'Frost Fairy', 2, 'fairy', "2 heal every 3s. Freezes the enemy's highest-tier unit for 1.5s every 4s", { t: [[3, heal(2)], [4, freeze('top', 1.5), cold(1)]] });
-U('sporeFairy', 'Spore Fairy', 2, 'fairy', '2 heal and 1 poison every 2.5s', { t: [[2.5, heal(2), poison(1)]] });
+U('sporeFairy', 'Spore Fairy', 2, 'fairy', 'Whenever you heal, the enemy gains 1 poison', { onHeal: [poison(1, { trigger: true })] });
 U('luckyFairy', 'Lucky Fairy', 2, 'fairy', '2 heal every 2s. +4 Luck at fight start. +5% rare odds while you own it', { t: [[2, heal(2)]], startLuck: 4, rareOdds: 5 });
 U('moonFairy', 'Moon Fairy', 2, 'fairy', '3 heal every 2s. Triple heal while your fortress is below 30%', { t: [[2, heal(3)]], lowHp: { below: 0.3, mult: 3, k: 'heal' } });
 U('fairyCourt', 'Fairy Court', 3, 'fairy', 'Bless a random friendly unit every 1s. Every 5th Bless also gives +1 Luck', { t: [[1, bless(1, { luckEvery: 5 })]] });
-U('groveSpirit', 'Grove Spirit', 3, 'fairy', '7 heal every 1.5s', { t: [[1.5, heal(7)]] });
-U('elderTreant', 'Elder Treant', 3, 'fairy', '10 shield and 4 heal every 2.5s', { t: [[2.5, shield(10), heal(4)]] });
-U('willOWisp', "Will-o'-Wisp", 3, 'fairy', '3 burn every 2s. Freezes a random enemy unit for 1s every 3s', { t: [[2, burn(3)], [3, freeze('random', 1)]] });
-U('windSprite', 'Wind Sprite', 3, 'fairy', '2 damage every 1s. All your units get +20% haste', { t: [[1, dmg(2)]], haste: 0.2 });
-U('sylph', 'Sylph', 3, 'fairy', '3 heal every 1.5s', { t: [[1.5, heal(3)]] });
-U('myconid', 'Myconid', 3, 'fairy', '4 heal and 2 poison every 3s', { t: [[3, heal(4), poison(2)]] });
+U('groveSpirit', 'Grove Spirit', 3, 'fairy', '5 heal every 1.5s. +1 heal permanently after each fight you win', { t: [[1.5, heal(5)]], permWin: 1 });
+U('elderTreant', 'Elder Treant', 3, 'fairy', 'Every 2.5s, gains 4 shield plus 1 per 10 HP your fortress is missing, and heals 2', { t: [[2.5, special('bark', { n: 4, frac: 0.1 }), heal(2)]], main: 'shield' });
+U('willOWisp', 'Will-o\'-Wisp', 3, 'fairy', 'Every 3s, freezes a random enemy unit for 1.5s and burns the enemy for twice its tier', { t: [[3, special('wisp')]] });
+U('windSprite', 'Wind Sprite', 3, 'fairy', '2 damage every 1s. Your units get +8% haste for each empty wall slot', { t: [[1, dmg(2)]], emptyHaste: 0.08 });
+U('sylph', 'Sylph', 3, 'fairy', '2 heal every 1.5s and charges a random friendly unit 0.3s', { t: [[1.5, heal(2), charge('random', 0.3)]] });
+U('myconid', 'Myconid', 3, 'fairy', "1 poison every 3s. Every 3s, heals you for half the enemy's poison", { t: [[3, poison(1), special('myco')]] });
 U('fortuneFairy', 'Fortune Fairy', 3, 'fairy', '+8 Luck at fight start. +5% rare odds while owned. +1 gold per day', { startLuck: 8, rareOdds: 5, gold: 1 });
 U('snowQueen', 'Snow Queen', 3, 'fairy', 'Freezes the 2 highest-tier enemy units for 1.5s every 4s', { t: [[4, freeze('top2', 1.5), cold(1)]] });
 
@@ -157,24 +158,24 @@ const GROVE_FOOD = ['berry', 'wood'];
 const GOLD_FOOD = ['coin'];
 
 // Flame
-U('flameImp', 'Flame Imp', 1, 'spirit', '1 burn every 1.2s', { ...TRACK, t: [[1.2, burn(1)]] });
+U('flameImp', 'Flame Imp', 1, 'spirit', '2 burn every 2.4s. Its first cast happens at once', { ...TRACK, t: [[2.4, burn(2)]], firstStrike: true });
 U('salamander', 'Salamander', 1, 'wolf', '1 burn every 1.5s. +1 burn per hit this fight (max +4)', { ...TRACK, t: [[1.5, burn(1, { ramp: 4 })]], tags: CREATURE });
 U('cinderMaw', 'Cinder Maw', 1, 'spirit', '2 burn every 2.5s, +1 per meal eaten. Eats Ember or Wood. Evolves after 5 meals', { ...TRACK, t: [[2.5, burn(2)]], eats: { foods: FIRE_FOOD, evolve: [5, 'cinderWyrm'] } });
 U('cinderWyrm', 'Cinder Wyrm', 3, 'spirit', '2 burn every 1.8s, +1 per meal eaten. Eats Ember or Wood. Evolves after 12 meals', { ...TRACK, t: [[1.8, burn(2)]], eats: { foods: FIRE_FOOD, evolve: [12, 'emberLeviathan'] } });
 U('emberLeviathan', 'Ember Leviathan', 4, 'spirit', '2 burn every 1.4s, +1 per meal eaten. At fight start the enemy gains burn equal to its meals. Still eats Ember or Wood', { ...TRACK, t: [[1.4, burn(2)]], eats: { foods: FIRE_FOOD }, startEnemy: { k: 'burn', perMeal: 1 } });
 U('ashMoth', 'Ash Moth', 1, 'fairy', '2 damage every 1.5s. +1 damage per 5 burn on the enemy', { ...TRACK, t: [[1.5, dmg(2, { perEnemy: ['burn', 5] })]] });
-U('hellImp', 'Hell Imp', 2, 'spirit', '2 burn every 1.2s', { ...TRACK, t: [[1.2, burn(2)]] });
+U('hellImp', 'Hell Imp', 2, 'spirit', '2 burn every 1.8s, +1 per other spirit on your wall', { ...TRACK, t: [[1.8, burn(2, { perAlly: { family: 'spirit', n: 1 } })]] });
 U('torchbearer', 'Torchbearer', 2, 'person', "2 damage and 1 burn every 1.5s. Neighbours' burn +1", { ...TRACK, t: [[1.5, dmg(2), burn(1)]], aura: { k: 'burn', n: 1 }, main: 'burn' });
-U('sparkSprite', 'Spark Sprite', 2, 'fairy', '1 burn every 0.6s', { ...TRACK, t: [[0.6, burn(1)]] });
-U('smokeImp', 'Smoke Imp', 2, 'spirit', '1 burn and 1 poison every 1.8s', { ...TRACK, t: [[1.8, burn(1), poison(1)]] });
-U('fireElemental', 'Fire Elemental', 3, 'spirit', '5 burn every 2s', { ...TRACK, t: [[2, burn(5)]] });
+U('sparkSprite', 'Spark Sprite', 2, 'fairy', '1 burn every 1s. Charges its neighbours 0.3s each time it acts', { ...TRACK, t: [[1, burn(1), charge('neighbours', 0.3)]] });
+U('smokeImp', 'Smoke Imp', 2, 'spirit', '2 burn every 1.8s. Adds 1 poison too while the enemy is already poisoned', { ...TRACK, t: [[1.8, burn(2), poison(0, { ifEnemy: ['poison', 1] })]] });
+U('fireElemental', 'Fire Elemental', 3, 'spirit', "4 burn every 2s. Can't be frozen or slowed by Cold", { ...TRACK, t: [[2, burn(4)]], noFreeze: true, noCold: true });
 U('lavaGolem', 'Lava Golem', 3, 'golem', '8 shield every 2.5s. While you have shield, the enemy gains 1 burn every 1s', { ...TRACK, t: [[2.5, shield(8)], [1, burn(1, { ifShield: true })]] });
 U('beacon', 'Beacon', 3, 'thing', "3 damage and 2 burn every 1.5s. Neighbours' burn +2", { ...TRACK, t: [[1.5, dmg(3), burn(2)]], aura: { k: 'burn', n: 2 }, main: 'burn' });
-U('smogElemental', 'Smog Elemental', 3, 'spirit', '2 burn and 2 poison every 2.2s', { ...TRACK, t: [[2.2, burn(2), poison(2)]] });
+U('smogElemental', 'Smog Elemental', 3, 'spirit', '1 poison every 2.2s, plus 2 burn and +1 burn per 2 poison on the enemy', { ...TRACK, t: [[2.2, poison(1), burn(2, { perEnemy: ['poison', 2] })]] });
 U('magmaSalamander', 'Magma Salamander', 2, 'wolf', '1 burn every 1.5s, +1 per hit this fight (max +6). Starts each fight with 8 shield', { ...TRACK, t: [[1.5, burn(1, { ramp: 6 })]], startShield: 8, tags: CREATURE });
 U('toxicNewt', 'Toxic Newt', 2, 'wolf', '1 burn and 1 poison every 1.8s. Both +1 per hit this fight (max +3)', { ...TRACK, t: [[1.8, burn(1, { ramp: 3 }), poison(1, { ramp: 3 })]], tags: CREATURE });
-U('firedrake', 'Firedrake', 2, 'wolf', '2 burn every 1.5s. +1 burn per hit this fight (max +4)', { ...TRACK, t: [[1.5, burn(2, { ramp: 4 })]], tags: CREATURE });
-U('drakeMatriarch', 'Drake Matriarch', 3, 'wolf', '3 burn every 1.5s. +1 burn per hit this fight (max +6)', { ...TRACK, t: [[1.5, burn(3, { ramp: 6 })]], tags: CREATURE });
+U('firedrake', 'Firedrake', 2, 'wolf', '2 damage and 1 burn every 1.5s. Both +1 per hit this fight (max +3)', { ...TRACK, t: [[1.5, dmg(2, { ramp: 3 }), burn(1, { ramp: 3 })]], tags: CREATURE });
+U('drakeMatriarch', 'Drake Matriarch', 3, 'wolf', '3 burn every 2s. Each cast gives your other drakes +1 to their main number for the fight (max +4)', { ...TRACK, t: [[2, burn(3), special('rally', { kin: 'drake', n: 1, max: 4 })]], tags: CREATURE });
 U('cinderHawk', 'Cinder Hawk', 2, 'fairy', '3 damage every 1s. +1 damage per 5 burn on the enemy', { ...TRACK, t: [[1, dmg(3, { perEnemy: ['burn', 5] })]] });
 U('pyreMoth', 'Pyre Moth', 3, 'fairy', '3 damage and 1 burn every 1s. +1 damage per 4 burn on the enemy', { ...TRACK, t: [[1, dmg(3, { perEnemy: ['burn', 4] }), burn(1)]] });
 U('pyreKeeper', 'Pyre Keeper', 3, 'person', "Every 4s, deals damage equal to the enemy's burn (the burn stays)", { ...TRACK, t: [[4, special('detonate', { kind: 'burn' })]] });
@@ -185,7 +186,7 @@ U('mummy', 'Mummy', 1, 'spirit', '1 poison and 4 shield every 4s', { ...TRACK, t
 U('bogMaw', 'Bog Maw', 1, 'scorpion', '1 poison every 3s, +1 per 2 meals eaten. Eats Mushroom or Bone. Evolves after 5 meals', { ...TRACK, t: [[3, poison(1)]], eats: BOG([5, 'bogHulk']), tags: CREATURE });
 U('bogHulk', 'Bog Hulk', 3, 'scorpion', '1 poison every 2.4s, +1 per 2 meals eaten. Eats Mushroom or Bone. Evolves after 12 meals', { ...TRACK, t: [[2.4, poison(1)]], eats: BOG([12, 'swampTitan']), tags: CREATURE });
 U('swampTitan', 'Swamp Titan', 4, 'scorpion', '1 poison every 2s, +1 per 2 meals eaten. At fight start the enemy gains poison equal to half its meals. Still eats Mushroom or Bone', { ...TRACK, t: [[2, poison(1)]], eats: BOG(), startEnemy: { k: 'poison', perMeal: 0.5 }, tags: CREATURE });
-U('plagueRat', 'Plague Rat', 1, 'wolf', '1 poison every 2s', { ...TRACK, t: [[2, poison(1)]], tags: CREATURE });
+U('plagueRat', 'Plague Rat', 1, 'wolf', '1 poison every 2s, +1 per other rat on your wall', { ...TRACK, t: [[2, poison(1, { perAlly: { kin: 'rat', n: 1 } })]], tags: CREATURE });
 U('ghast', 'Ghast', 2, 'spirit', '3 damage every 1.5s. Each hit heals you 2', { ...TRACK, t: [[1.5, dmg(3, { lifesteal: 2 })]] });
 U('corpseEater', 'Corpse Eater', 2, 'spirit', '3 damage and 1 poison every 2s. Each hit heals you 1', { ...TRACK, t: [[2, dmg(3, { lifesteal: 1 }), poison(1)]] });
 U('boneGolem', 'Bone Golem', 2, 'golem', '8 shield every 3s. +2 shield permanently after each fight', { ...TRACK, t: [[3, shield(8)]], perm: 2 });
@@ -193,24 +194,24 @@ U('sandMummy', 'Sand Mummy', 2, 'spirit', '2 poison, 2 Sand and 4 shield every 4
 U('pharaoh', 'Pharaoh', 3, 'spirit', '3 poison, 2 Sand and 8 shield every 4s. +1 gold per day', { ...TRACK, t: [[4, poison(3), sand(2), shield(8)]], gold: 1 });
 U('ratKing', 'Rat King', 2, 'wolf', '1 poison every 2s. Every 4s, summons a Plague Rat into an empty slot (max 3)', { ...TRACK, t: [[2, poison(1)], [4, summon('plagueRat', 3)]], tags: CREATURE });
 U('plagueDoctor', 'Plague Doctor', 2, 'person', '2 heal every 2s. Every 3s, turns up to 4 enemy burn into 3 poison', { ...TRACK, t: [[2, heal(2)], [3, special('convert', { take: 4, give: 3 })]] });
-U('blightRat', 'Blight Rat', 2, 'wolf', '1 poison every 1.5s. +1 more per 8 poison the enemy has', { ...TRACK, t: [[1.5, poison(1, { per10: 1, perN: 8 })]], tags: CREATURE });
+U('blightRat', 'Blight Rat', 2, 'wolf', '1 poison and 1 Cold every 1.5s', { ...TRACK, t: [[1.5, poison(1), cold(1)]], tags: CREATURE });
 U('fester', 'Fester', 3, 'spirit', "Every 5s, deals damage equal to the enemy's poison, ignoring shield (the poison stays)", { ...TRACK, t: [[5, special('detonate', { kind: 'poison' })]] });
 
 // Grove
-U('stag', 'Stag', 1, 'wolf', '3 damage every 1.5s', { ...TRACK, t: [[1.5, dmg(3)]], tags: CREATURE });
+U('stag', 'Stag', 1, 'wolf', '3 damage every 1.8s. Its first charge happens at once', { ...TRACK, t: [[1.8, dmg(3)]], firstStrike: true, tags: CREATURE });
 U('thornbush', 'Thornbush', 1, 'fairy', '4 shield every 3s. Each enemy hit on your shield deals 1 back', { ...TRACK, t: [[3, shield(4)]], thorns: 1 });
 U('sapling', 'Sapling', 1, 'fairy', '2 heal every 2.5s, +1 per meal eaten. Eats Berry or Wood. Evolves after 5 meals', { ...TRACK, t: [[2.5, heal(2)]], eats: { foods: GROVE_FOOD, evolve: [5, 'oakheart'] } });
 U('oakheart', 'Oakheart', 3, 'fairy', '2 heal and 4 shield every 2.5s, heal +1 per meal eaten. Eats Berry or Wood. Evolves after 12 meals', { ...TRACK, t: [[2.5, heal(2), shield(4)]], eats: { foods: GROVE_FOOD, evolve: [12, 'worldTree'] } });
 U('worldTree', 'World Tree', 4, 'fairy', '2 heal and 6 shield every 2s, heal +1 per meal eaten. Healing past full HP becomes shield. Still eats Berry or Wood', { ...TRACK, t: [[2, heal(2), shield(6)]], eats: { foods: GROVE_FOOD }, overheal: true });
 U('vineling', 'Vineling', 1, 'fairy', '2 heal every 2s. Neighbours act 15% faster', { ...TRACK, t: [[2, heal(2)]], auraHaste: 0.15 });
 U('unicorn', 'Unicorn', 2, 'wolf', '3 damage and 3 heal every 2s', { ...TRACK, t: [[2, dmg(3), heal(3)]], tags: CREATURE });
-U('elkHerd', 'Elk Herd', 2, 'wolf', '3 damage every 1s', { ...TRACK, t: [[1, dmg(3)]], tags: CREATURE });
-U('antlerGuard', 'Antler Guard', 2, 'wolf', '4 damage every 2s and 4 shield every 2.5s', { ...TRACK, t: [[2, dmg(4)], [2.5, shield(4)]], tags: CREATURE });
-U('greatStag', 'Great Stag', 3, 'wolf', '4 damage every 0.8s', { ...TRACK, t: [[0.8, dmg(4)]], tags: CREATURE });
+U('elkHerd', 'Elk Herd', 2, 'wolf', '3 damage every 1s, but only while your fortress is healthier than the enemy\'s (by %)', { ...TRACK, t: [[1, dmg(3)]], ahead: true, tags: CREATURE });
+U('antlerGuard', 'Antler Guard', 2, 'wolf', '3 damage every 2s and 4 shield every 2.5s. +1 damage whenever your shield is hit (max +6)', { ...TRACK, t: [[2, dmg(3)], [2.5, shield(4)]], onShieldHit: [special('selfBonus', { max: 6 })], tags: CREATURE });
+U('greatStag', 'Great Stag', 3, 'wolf', "5 damage every 1.5s. Each hit sets back the enemy's slowest unit by 0.6s", { ...TRACK, t: [[1.5, dmg(5, { delay: { target: 'slowest', s: 0.6 } })]], tags: CREATURE });
 U('briarWall', 'Briar Wall', 2, 'fairy', '8 shield every 3s. Each enemy hit on your shield deals 2 back', { ...TRACK, t: [[3, shield(8)]], thorns: 2 });
-U('rosebush', 'Rosebush', 2, 'fairy', '4 shield and 3 heal every 3s. Each enemy hit on your shield deals 1 back', { ...TRACK, t: [[3, shield(4), heal(3)]], thorns: 1 });
+U('rosebush', 'Rosebush', 2, 'fairy', '4 shield every 3s. Heals 1 whenever an enemy hits your shield', { ...TRACK, t: [[3, shield(4)]], onShieldHit: [heal(1)] });
 U('ancientTree', 'Ancient Tree', 3, 'fairy', '12 shield and 6 heal every 3s. Each enemy hit on your shield deals 2 back', { ...TRACK, t: [[3, shield(12), heal(6)]], thorns: 2 });
-U('bloomVine', 'Bloom Vine', 2, 'fairy', '4 heal every 2s. Neighbours act 20% faster', { ...TRACK, t: [[2, heal(4)]], auraHaste: 0.2 });
+U('bloomVine', 'Bloom Vine', 2, 'fairy', '2 heal every 2s. Neighbours act 15% faster and start each fight with +1 to their main number', { ...TRACK, t: [[2, heal(2)]], auraHaste: 0.15, startNeighbourBonus: 1 });
 
 // Caravan
 U('camel', 'Camel', 1, 'wolf', 'No attack. +1 shop slot', { ...TRACK, shopSlot: 1, tags: CREATURE });
@@ -225,31 +226,31 @@ U('spiceTrader', 'Spice Trader', 2, 'person', '2 damage and 2 burn every 2s. Sel
 U('mimic', 'Mimic', 2, 'thing', 'Every 3s, deals 2 damage plus 1 per day owned (max +8)', { ...TRACK, t: [[3, dmg(2, { perOwned: 8 })]] });
 
 // Forge
-U('golem', 'Golem', 1, 'golem', '5 shield every 3s', { ...TRACK, t: [[3, shield(5)]] });
-U('catapult', 'Catapult', 1, 'thing', '6 damage every 4s', { ...TRACK, t: [[4, dmg(6)]] });
+U('golem', 'Golem', 1, 'golem', "5 shield every 3s. Can't be frozen", { ...TRACK, t: [[3, shield(5)]], noFreeze: true });
+U('catapult', 'Catapult', 1, 'thing', '4 damage every 4s, +1 per day', { ...TRACK, t: [[4, dmg(4, { perDay: 1 })]] });
 U('smith', 'Smith', 1, 'person', '1 damage every 2s. Neighbours deal +1 damage', { ...TRACK, t: [[2, dmg(1)]], aura: { k: 'dmg', n: 1 } });
-U('clockwork', 'Clockwork', 1, 'golem', '1 damage every 0.7s', { ...TRACK, t: [[0.7, dmg(1)]] });
+U('clockwork', 'Clockwork', 1, 'golem', '1 damage every 0.8s. Every 5th hit deals 5', { ...TRACK, t: [[0.8, dmg(1, { nth: 5, nthMult: 5 })]] });
 U('ironGolem', 'Iron Golem', 2, 'golem', '9 shield every 3s. Each enemy hit on your shield deals 1 back', { ...TRACK, t: [[3, shield(9)]], thorns: 1 });
-U('siegeTower', 'Siege Tower', 2, 'thing', '6 damage every 2.5s, ignores shield', { ...TRACK, t: [[2.5, dmg(6, { pierce: true })]] });
+U('siegeTower', 'Siege Tower', 2, 'thing', 'Every 2.5s, destroys up to 10 enemy shield, then deals 4 damage', { ...TRACK, t: [[2.5, special('breakShield', { n: 10 }), dmg(4)]], main: 'dmg' });
 U('fireCatapult', 'Fire Catapult', 2, 'thing', '6 damage and 3 burn every 4s', { ...TRACK, t: [[4, dmg(6), burn(3)]] });
 U('trebuchet', 'Trebuchet', 3, 'thing', '16 damage every 4s, ignores shield', { ...TRACK, t: [[4, dmg(16, { pierce: true })]] });
 U('masterSmith', 'Master Smith', 2, 'person', '2 damage every 2s. Neighbours deal +2 damage', { ...TRACK, t: [[2, dmg(2)]], aura: { k: 'dmg', n: 2 } });
 U('runesmith', 'Runesmith', 3, 'person', '2 damage every 2s. Neighbours deal +2 damage and act 15% faster', { ...TRACK, t: [[2, dmg(2)]], aura: { k: 'dmg', n: 2 }, auraHaste: 0.15 });
-U('clockworkKnight', 'Clockwork Knight', 2, 'golem', '1 damage every 0.6s and 3 shield every 2s', { ...TRACK, t: [[0.6, dmg(1)], [2, shield(3)]] });
-U('gearstorm', 'Gearstorm', 2, 'golem', '1 damage every 0.35s', { ...TRACK, t: [[0.35, dmg(1)]] });
+U('clockworkKnight', 'Clockwork Knight', 2, 'golem', '1 damage every 0.7s. Each hit gives you 1 shield', { ...TRACK, t: [[0.7, dmg(1, { shieldGain: 1 })]] });
+U('gearstorm', 'Gearstorm', 2, 'golem', '1 damage every 0.7s. Gets 4% faster with every hit (max +60%)', { ...TRACK, t: [[0.7, dmg(1)]], accel: { per: 0.04, max: 0.6 } });
 
 // Side-grades across the base trees
-U('nightWatch', 'Night Watch', 2, 'person', '3 damage every 2s. Double damage while your fortress is below 50%', { t: [[2, dmg(3)]], lowHp: { below: 0.5, mult: 2, k: 'dmg' } });
-U('boneArcher', 'Bone Archer', 3, 'person', '3 damage every 1.2s. +1 damage permanently after each fight', { t: [[1.2, dmg(3)]], perm: 1 });
-U('venomArcher', 'Venom Archer', 3, 'person', '2 damage and 1 poison every 1.5s', { t: [[1.5, dmg(2), poison(1)]] });
-U('smokeweaver', 'Smokeweaver', 3, 'person', '2 burn and 1 poison every 2s', { t: [[2, burn(2), poison(1)]] });
-U('braziarGuard', 'Brazier Guard', 3, 'person', "6 shield every 2.5s. Neighbours' burn +1", { t: [[2.5, shield(6)]], aura: { k: 'burn', n: 1 } });
-U('herbalist', 'Herbalist', 3, 'person', '5 heal and 1 poison every 2s', { t: [[2, heal(5), poison(1)]] });
+U('nightWatch', 'Night Watch', 2, 'person', '3 shield every 2s. Whenever your fortress takes a hit of 6 or more, deals 4 damage back', { t: [[2, shield(3)]], onBigHit: { min: 6, acts: [dmg(4)] } });
+U('boneArcher', 'Bone Archer', 3, 'person', '3 damage every 1.2s. +2 damage permanently after each fight you win', { t: [[1.2, dmg(3)]], permWin: 2 });
+U('venomArcher', 'Venom Archer', 3, 'person', '2 damage every 1.5s, +1 per 4 poison on the enemy', { t: [[1.5, dmg(2, { perEnemy: ['poison', 4] })]] });
+U('smokeweaver', 'Smokeweaver', 3, 'person', '2 burn every 2s. Each time enemy burn ticks, adds 1 poison', { t: [[2, burn(2)]], onEnemyBurnTick: [poison(1)] });
+U('braziarGuard', 'Brazier Guard', 3, 'person', '5 shield every 2.5s. Whenever an enemy hits your shield, they gain 1 burn', { t: [[2.5, shield(5)]], onShieldHit: [burn(1)] });
+U('herbalist', 'Herbalist', 3, 'person', '3 heal every 2s, +1 per 3 poison on the enemy', { t: [[2, heal(3, { perEnemy: ['poison', 3] })]] });
 U('plagueSkeleton', 'Plague Skeleton', 3, 'person', '2 damage and 1 poison every 2s. +1 poison permanently after each fight', { t: [[2, dmg(2), poison(1)]], perm: 1, main: 'poison' });
-U('rabidWolf', 'Rabid Wolf', 2, 'wolf', '3 damage and 1 poison every 2.5s', { t: [[2.5, dmg(3), poison(1)]], tags: CREATURE });
-U('wasp', 'Wasp', 2, 'scorpion', '1 damage and 1 poison every 1.2s', { t: [[1.2, dmg(1), poison(1)]], tags: CREATURE });
+U('rabidWolf', 'Rabid Wolf', 2, 'wolf', '2 damage and 1 poison every 2.5s. Its poison grows by 1 each bite (max +4)', { t: [[2.5, dmg(2), poison(1, { ramp: 4 })]], tags: CREATURE });
+U('wasp', 'Wasp', 2, 'scorpion', '1 poison every 1s. Every 4th sting is triple', { t: [[1, poison(1, { nth: 4, nthMult: 3 })]], tags: CREATURE });
 U('banshee', 'Banshee', 2, 'fairy', '2 heal every 2s. Freezes a random enemy unit for 0.6s every 3s', { t: [[2, heal(2)], [3, freeze('random', 0.6)]] });
-U('kilnSpirit', 'Kiln Spirit', 3, 'spirit', "Every 3s, gain 2 Heat. Neighbours' burn +1", { t: [[3, heat(2)]], aura: { k: 'burn', n: 1 } });
+U('kilnSpirit', 'Kiln Spirit', 3, 'spirit', 'Gains 1 Heat whenever a neighbour acts', { onNeighbourAct: [heat(1)] });
 
 // Engines
 U('wishSprite', 'Wish Sprite', 3, 'fairy', 'Every 2s, Bless a random friendly unit and charge it 0.5s', { t: [[2, bless(1, { charge: 0.5 })]] });
@@ -262,9 +263,9 @@ U('jackal', 'Jackal', 2, 'wolf', '3 damage every 1.5s. Each hit adds 1 Sand', { 
 U('sandScorpion', 'Sand Scorpion', 2, 'scorpion', '1 poison and 1 Sand every 2.5s', { t: [[2.5, poison(1), sand(1)]], tags: CREATURE });
 U('dustSprite', 'Dust Sprite', 2, 'fairy', '3 Sand every 2.5s', { t: [[2.5, sand(3)]] });
 U('duneGuard', 'Dune Guard', 3, 'person', '5 shield every 2s. Whenever an enemy action misses, gain 2 shield', { t: [[2, shield(5)]], onEnemyMiss: [shield(2)] });
-U('stormCaller', 'Storm Caller', 3, 'person', '5 Sand every 3s', { t: [[3, sand(5)]] });
+U('stormCaller', 'Storm Caller', 3, 'person', 'Every 3s, adds 3 Sand, then deals 1 damage per 2 Sand on the enemy', { t: [[3, sand(3), dmg(0, { perEnemy: ['sand', 2] })]], main: 'sand' });
 U('mirage', 'Mirage', 3, 'fairy', 'Whenever an enemy action misses, charge a random friendly unit 0.5s', { onEnemyMiss: [charge('random', 0.5)] });
-U('duneStalker', 'Dune Stalker', 3, 'scorpion', '2 poison and 2 Sand every 2.5s', { t: [[2.5, poison(2), sand(2)]], tags: CREATURE });
+U('duneStalker', 'Dune Stalker', 3, 'scorpion', '2 poison and 2 Sand every 2.5s. Poison +1 per 4 Sand on the enemy', { t: [[2.5, poison(2, { perEnemy: ['sand', 4] }), sand(2)]], tags: CREATURE });
 U('bonfireKeeper', 'Bonfire Keeper', 3, 'person', '2 burn every 2s. Gain 2 Heat each time it acts', { t: [[2, burn(2), heat(2)]] });
 U('hearthSpirit', 'Hearth Spirit', 3, 'spirit', 'Whenever enemy burn ticks, gain 1 Heat', { onEnemyBurnTick: [heat(1)] });
 U('furnace', 'Furnace', 3, 'golem', 'Every 2s, gain 2 Heat. At 20+ Heat, spends 10 to deal 30 damage', { t: [[2, heat(2), special('furnace')]] });
@@ -421,8 +422,14 @@ export const TRACK_RARE_CHANCE = 0.1;
 // ---------------------------------------------------------------- rules
 
 export const RULES = {
+  // Everything in a fight runs 1.5x slower than the design doc's numbers.
+  time: 1.5,
+  burnTick: 1.5,
+  poisonTick: 3,
+  suddenTick: 1.5,
+  freezeGuard: 1.5,
   startGold: 10,
-  dayGold: 8,
+  dayGold: 5,
   winGold: 2,
   winsToFinish: 10,
   lives: 3,
@@ -432,11 +439,45 @@ export const RULES = {
   rerollPrice: 1,
   shopSlots: 4,
   rareCap: 50,
-  suddenDeath: 30,
+  suddenDeath: 45,
+  // Gold to combine, by the tier of the result (rares cost like tier 4).
+  combineCost: [0, 0, 2, 4, 6],
   combineTime: 0.9,
 };
 export const fortressHp = (day) => 40 + 20 * day;
 export const wallSlots = (day) => (day >= 7 ? 6 : day >= 4 ? 5 : 4);
+
+// ---------------------------------------------------------------- kin and pacing
+
+const KIN = {
+  wolf: ['wolf', 'wolfPack', 'alpha', 'hellhound', 'cerberus', 'direWolf', 'frostWolf', 'graveWolf', 'boneHound', 'werewolf',
+    'moonhowler', 'sandStalker', 'desertStalker', 'rabidWolf', 'jackal', 'denMother', 'wolfRider', 'manticore'],
+  scorpion: ['scorpion', 'scorpionSwarm', 'deathstalker', 'fireScorpion', 'armoredScorpion', 'sporeScorpion', 'nightScorpion',
+    'scorpionNest', 'tombStalker', 'lavaScorpion', 'shellScorpion', 'fungalNest', 'sandScorpion', 'duneStalker', 'wasp', 'scorpionQueen', 'sandworm'],
+  drake: ['salamander', 'magmaSalamander', 'toxicNewt', 'firedrake', 'drakeMatriarch'],
+  rat: ['plagueRat', 'ratKing', 'blightRat'],
+};
+for (const [kin, ids] of Object.entries(KIN)) for (const id of ids) {
+  const u = UNITS.find((x) => x.id === id);
+  if (!u) throw new Error(`kin ${kin}: unknown ${id}`);
+  u.kin = kin;
+}
+
+// Slow every fight timing down by RULES.time, and rewrite the card text to match.
+const scaleAct = (a) => {
+  if (a.k === 'alt') a.list.forEach(scaleAct);
+  if (a.k === 'freeze') a.dur = +(a.dur * RULES.time).toFixed(2);
+  if ((a.k === 'charge' || a.k === 'delay') && typeof a.s === 'number') a.s = +(a.s * RULES.time).toFixed(2);
+  if (a.k === 'bless' && a.charge) a.charge = +(a.charge * RULES.time).toFixed(2);
+  if (a.delay) a.delay = { ...a.delay, s: +(a.delay.s * RULES.time).toFixed(2) };
+};
+const fmt = (n) => String(+(n * RULES.time).toFixed(1));
+for (const u of UNITS) {
+  u.t = u.t.map(([cd, ...acts]) => { acts.forEach(scaleAct); return [+(cd * RULES.time).toFixed(2), ...acts]; });
+  if (u.once) { u.once = [u.once[0] * RULES.time, ...u.once.slice(1)]; u.once.slice(1).forEach(scaleAct); }
+  for (const key of ['onCrit', 'onEnemyMiss', 'onFreeze', 'onHeal', 'onShieldHit', 'onNeighbourAct', 'onEnemyHeal', 'onEnemyPoisonTick', 'onEnemyBurnTick']) u[key]?.forEach(scaleAct);
+  u.text = u.text.replace(/(\d+(?:\.\d+)?)s\b/g, (_, n) => `${fmt(Number(n))}s`);
+}
 
 // ---------------------------------------------------------------- lookup
 
@@ -470,7 +511,12 @@ for (const u of UNITS) {
 }
 
 export const BASE_UNITS = ['villager', 'wolf', 'scorpion', 'fairy'];
-export const SUMMONABLE = new Set(['scorpion', 'wolf', 'plagueRat']);
+export const SUMMONABLE = new Set(['scorpion', 'wolf', 'plagueRat', 'skeleton']);
+
+export function combineCost(resultId) {
+  const d = CARDS[resultId];
+  return RULES.combineCost[Math.min(4, d.rare ? 4 : d.tier)];
+}
 
 export function sellValue(def, inst, ownedTrader = 0) {
   if (def.chest) return Math.min(10, 3 + (inst?.owned || 0)) + ownedTrader;

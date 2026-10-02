@@ -7,6 +7,7 @@ import { fetchGhost, submitGhost } from './ghosts.js';
 import { createWorld, L, CARD, wallX, arenaX } from './gfx/world.js';
 import { CardView, loadArt, setAnisotropy } from './gfx/card.js';
 import { createFx, createFortressFx } from './gfx/fx.js';
+import { createFortressHud } from './gfx/fortress.js';
 import * as D from './gfx/draw.js';
 import { createUI, loadCodex, saveCodex } from './ui.js';
 import { sfx } from './audio.js';
@@ -361,7 +362,9 @@ function dropHint(d, v) {
     const rareKnown = codex.has(`${key}!`);
     let s = known ? `→ <b>${ui.esc(CARDS[d.info.result].name)}</b>` : '✦ A new combination!';
     if (d.info.rare) s += ` <span class="rare">★ ${d.info.chance}% ${rareKnown ? ui.esc(CARDS[d.info.rare].name) : 'rare'}</span>`;
-    return [s, false];
+    const broke = S.gold < d.info.cost;
+    s += ` · ${ui.ico('coin')} ${d.info.cost}${broke ? ' (not enough gold)' : ''}`;
+    return [s, broke];
   }
   if (d.kind === 'eat') {
     const e = R.eatInfo(d.target.id, d.target.inst?.meals || 0);
@@ -546,7 +549,10 @@ function endDrag() {
   }
 
   const inst = card.inst;
-  if (d.kind === 'card') return startCombine(card, d.target);
+  if (d.kind === 'card') {
+    if (S.gold < d.info.cost) { ui.toast(`Combining this costs ${d.info.cost} gold`, 'bad', 'coin'); bounceBack(card); refresh(); return; }
+    return startCombine(card, d.target);
+  }
   if (d.kind === 'eat') return feedEater(card, d.target);
   if (d.kind === 'sell') {
     const res = R.sell(S, inst.uid);
@@ -736,11 +742,15 @@ function feedEater(food, eater) {
 // ------------------------------------------------------------------ combining
 
 function startCombine(a, b) {
+  const info = R.combineInfo(S, a.id, b.id);
+  S.gold -= info.cost;
+  ui.hud(S, codex);
+  sfx.coin();
   a.busy = true;
   b.busy = true;
   a.raise();
   a.moveTo(b.pos.x, b.pos.z + 0.34);
-  combos.push({ a, b, t: 0 });
+  combos.push({ a, b, t: 0, paid: info.cost });
 }
 
 function updateCombos(dt) {
@@ -751,9 +761,10 @@ function updateCombos(dt) {
     if (c.t < RULES.combineTime) continue;
     combos.splice(i, 1);
     c.b.setBar(null);
-    const res = R.combine(S, c.a.inst.uid, c.b.inst.uid);
+    const res = R.combine(S, c.a.inst.uid, c.b.inst.uid, { prepaid: true });
     c.a.busy = false;
     c.b.busy = false;
+    if (!res.ok) S.gold += c.paid;
     if (!res.ok) { ui.toast(res.reason || 'Nothing happens'); refresh(); continue; }
     const at = c.b.pos.clone();
     fx.puffs(at, { n: 10, spread: 1.1 });
@@ -796,6 +807,9 @@ const auraClock = [0, 0];
 let lastBreakdown = null;
 const fortFx = { 0: createFortressFx(scene, world.towers.player), 1: createFortressFx(scene, world.towers.enemy) };
 
+const fortHud = { 0: createFortressHud(scene, world.towers.player), 1: createFortressHud(scene, world.towers.enemy) };
+fortHud[0].hide();
+fortHud[1].hide();
 const towerPos = (side) => (side === 0 ? world.towers.player : world.towers.enemy).position.clone().setY(1.7);
 const unitPos = (ref) => {
   const v = ref && bv[ref.side][ref.slot];
@@ -847,6 +861,8 @@ async function startFight() {
   }
   fortFx[0].reset();
   fortFx[1].reset();
+  fortHud[0].reset(snap.hp);
+  fortHud[1].reset(ghost.hp);
   world.frame(0, A.cz - 0.15, 19.4, 13.6);
   view.zoom = 1;
   ui.battleStart(snap, ghost);
@@ -869,46 +885,43 @@ function battleEvent(e) {
       break;
     }
     case 'dmg': {
+      // Damage lands in the fortress's counters beside the tower, never on the castle itself.
       const impact = () => {
-        const p = towerPos(e.side);
-        const tick = e.kind === 'burn' || e.kind === 'poison';
-        if (e.amount > 0 && !tick) {
-          fx.number(p, `-${e.amount}`, kindOf(e.kind), { big: e.crit || e.amount >= 15, icon: e.kind === 'burn' || e.kind === 'poison' ? e.kind : null });
-          fx.puffs(p.clone().setY(0.8), { n: e.amount >= 10 ? 7 : 3, s: 0.3, spread: 0.9 });
-        }
-        if (e.absorbed > 0) {
-          fx.number(p.clone().add(new THREE.Vector3(0.9, 0.2, 0)), `-${e.absorbed}`, 'shield');
-          fortFx[e.side].hit();
-        }
-        if (e.kind === 'burn' || e.kind === 'poison') sfx.tick();
-        else if (e.amount + e.absorbed >= 15) { sfx.bigHit(); view.shake = Math.min(0.5, view.shake + 0.25); }
+        const kind = e.kind === 'burn' || e.kind === 'poison' || e.kind === 'sudden' ? e.kind : 'hit';
+        fortHud[e.side].add(kind, e.amount);
+        if (e.absorbed > 0) { fortHud[e.side].add('blocked', e.absorbed); fortFx[e.side].hit(); }
+        if (e.amount > 0 && kind === 'hit') fx.puffs(towerPos(e.side).setY(1.1), { n: e.amount >= 10 ? 6 : 2, s: 0.28, spread: 0.8 });
+        if (kind === 'burn' || kind === 'poison') sfx.tick();
+        else if (e.amount + e.absorbed >= 15) { sfx.bigHit(); view.shake = Math.min(0.4, view.shake + 0.2); }
         else sfx.hit();
+        if (e.crit) fx.label(towerPos(e.side).add(new THREE.Vector3(-2.6, 0.6, -1.2)), 'crit!', '#f2c64a', 0.8);
       };
       if (e.src) {
         sfx.shoot();
-        fx.projectile(unitPos(e.src), towerPos(e.side), e.pierce ? 'charge' : 'dmg', { size: e.crit ? 1.5 : 1, onHit: impact });
+        fx.projectile(unitPos(e.src), towerPos(e.side), e.pierce ? 'charge' : 'dmg', { size: e.crit ? 1.5 : 1, dur: 0.5, onHit: impact });
       } else impact();
       break;
     }
     case 'tick': {
-      // Status ticks get their own big number beside the tower: burn left, poison right.
-      const p = towerPos(e.side).add(new THREE.Vector3(e.kind === 'burn' ? -1.7 : 1.7, 0.2, 0));
-      fx.number(p, `-${e.amount}`, e.kind, { big: true, icon: e.kind, still: true });
-      fx.puffs(towerPos(e.side).setY(1.2), { n: Math.min(10, 3 + Math.floor(e.amount / 4)), s: 0.28, spread: 1, color: e.kind === 'burn' ? '#ffb070' : '#b6e38a' });
+      fx.puffs(towerPos(e.side).setY(1.2), { n: Math.min(8, 2 + Math.floor(e.amount / 5)), s: 0.26, spread: 0.9, color: e.kind === 'burn' ? '#ffb070' : '#b6e38a' });
       ui.flashStatus(e.side, e.kind);
-      sfx.tick();
       break;
     }
     case 'heal':
-      fx.projectile(unitPos(e.src), towerPos(e.side), 'heal', { arc: 1.4, dur: 0.32, size: 0.8, onHit: () => { fx.number(towerPos(e.side), `+${e.amount}`, 'heal'); sfx.heal(); } });
+      fx.projectile(unitPos(e.src), towerPos(e.side), 'heal', { arc: 1.4, dur: 0.45, size: 0.8, onHit: () => { fortHud[e.side].add('heal', e.amount); sfx.heal(); } });
       break;
     case 'shield':
-      if (!e.src) { fx.number(towerPos(e.side), `+${e.amount}`, 'shield'); break; }
-      fx.projectile(unitPos(e.src), towerPos(e.side), 'shield', { arc: 1.4, dur: 0.32, size: 0.8, onHit: () => { fx.number(towerPos(e.side), `+${e.amount}`, 'shield'); fortFx[e.side].hit(); sfx.shield(); } });
+      if (!e.src) { fortHud[e.side].add('shield', e.amount); break; }
+      fx.projectile(unitPos(e.src), towerPos(e.side), 'shield', { arc: 1.4, dur: 0.45, size: 0.8, onHit: () => { fortHud[e.side].add('shield', e.amount); fortFx[e.side].hit(); sfx.shield(); } });
       break;
+    case 'delay': {
+      const tv = e.target && bv[e.target.side][e.target.slot];
+      if (e.src && e.target) fx.projectile(unitPos(e.src), unitPos(e.target), 'sand', { arc: 1, dur: 0.3, size: 0.6, onHit: () => { if (tv) { tv.kick(-0.1); fx.label(tv.pos.clone().setY(0.4), 'slowed', '#e8c98f', 0.55); } } });
+      break;
+    }
     case 'status': {
       if (e.src && e.src.side !== e.side) {
-        fx.projectile(unitPos(e.src), towerPos(e.side), e.kind, { dur: 0.4, size: 0.9, onHit: () => fx.number(towerPos(e.side).add(new THREE.Vector3(-0.9, 0, 0)), `+${e.amount}`, e.kind, { icon: e.kind }) });
+        fx.projectile(unitPos(e.src), towerPos(e.side), e.kind, { dur: 0.5, size: 0.9, onHit: () => ui.flashStatus(e.side, e.kind) });
       } else {
         fx.label(e.src ? unitPos(e.src) : towerPos(e.side), `+${e.amount}`, '#fff', 0.6, e.kind);
       }
@@ -986,6 +999,7 @@ function updateBattle(dt) {
         if (mode !== 'intro') v.setTally(Math.floor(u.dealt));
       });
       fortFx[side].set(B.sides[side].shield);
+      fortHud[side].set(B.sides[side]);
       // Ambient flames / bubbles on a fortress that is burning or poisoned.
       const St = B.sides[side];
       auraClock[side] += dt;
@@ -1038,6 +1052,8 @@ function closeBattle() {
   ui.modal(null);
   ui.hideBanner();
   ui.battleEnd();
+  fortHud[0].hide();
+  fortHud[1].hide();
   for (const v of bv[0]) if (v) v.setTally(null);
   for (const v of bv[1]) if (v) { fx.puffs(v.pos, { n: 6, s: 0.35 }); v.dispose(scene); }
   for (const [i, v] of bv[0].entries()) {
@@ -1166,6 +1182,8 @@ function frame(now) {
   }
   fortFx[0].update(dt);
   fortFx[1].update(dt);
+  fortHud[0].update(dt);
+  fortHud[1].update(dt);
   fx.update(dt);
   world.updateCamera(dt);
   world.render();

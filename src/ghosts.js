@@ -46,29 +46,32 @@ export async function fetchGhost({ day, wins, losses, runSeed, seed }) {
   return botGhost(day, wins, losses, r);
 }
 
+// Matches the player's economy: 5 gold a day and paid combines mean
+// tier III arrives around day 5-6 and tier IV only late.
 const TIER_BY_DAY = (day) => {
-  if (day <= 1) return [[1, 3], [2, 1]];
-  if (day <= 2) return [[1, 2], [2, 3]];
-  if (day <= 3) return [[1, 1], [2, 4], [3, 1]];
-  if (day <= 5) return [[2, 3], [3, 3]];
-  if (day <= 7) return [[2, 1], [3, 4], [4, 1]];
-  if (day <= 9) return [[3, 4], [4, 2]];
-  return [[3, 3], [4, 3]];
+  if (day <= 1) return [[1, 4], [2, 1]];
+  if (day <= 2) return [[1, 3], [2, 2]];
+  if (day <= 3) return [[1, 2], [2, 4]];
+  if (day <= 5) return [[2, 4], [3, 1]];
+  if (day <= 7) return [[2, 3], [3, 2]];
+  if (day <= 9) return [[2, 1], [3, 3], [4, 1]];
+  return [[3, 3], [4, 1]];
 };
 
 export function botGhost(day, wins = 0, losses = 0, r = createRng(day * 7919)) {
   const slots = wallSlots(day);
   const fill = Math.min(slots, day <= 1 ? 2 + r.int(2) : day <= 3 ? 3 + r.int(2) : slots - r.int(2));
+  const meals = (def) => (def.eats ? Math.min(14, day) : 0);
   const arch = r.pick(Object.keys(ARCHETYPES));
-  const units = Object.values(CARDS).filter((c) => c.kind === 'unit' && !(c.track && day < 4) && !(c.rare && day < 7) && c.id !== 'mirror' && !c.chest && !c.shopSlot);
+  const units = Object.values(CARDS).filter((c) => c.kind === 'unit' && !(c.track && day < 4) && !(c.rare && day < 8) && c.id !== 'mirror' && !c.chest && !c.shopSlot);
   const wall = Array(slots).fill(null);
   for (let i = 0; i < fill; i++) {
     const tier = r.weighted(TIER_BY_DAY(day));
     const themed = ARCHETYPES[arch].map((id) => CARDS[id]).filter((c) => c.tier === tier);
     const pool = themed.length && r.chance(0.65) ? themed : units.filter((c) => c.tier === tier);
     const def = r.pick(pool.length ? pool : units);
-    const meals = def.eats ? Math.min(14, day * 2) : 0;
-    wall[i] = { id: def.id, perm: (def.perm ? Math.floor((day - 1) / 2) : 0) + Math.floor(meals / (def.eats?.per || 1)), meals, owned: Math.floor(day / 2) };
+    const m = meals(def);
+    wall[i] = { id: def.id, perm: (def.perm ? Math.floor((day - 1) / 2) : 0) + Math.floor(m / (def.eats?.per || 1)), meals: m, owned: Math.floor(day / 2) };
   }
   // Shuffle into slots so empty spaces vary.
   for (let i = wall.length - 1; i > 0; i--) {

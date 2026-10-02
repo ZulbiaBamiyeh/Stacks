@@ -207,17 +207,17 @@ export function createUI() {
   function help() {
     return modal(`
       <h2>How to play</h2>
-      <p>Build a wall of units, then fight a ghost of another player's fortress. First fortress to 0 HP loses. Reach <b>10 wins</b> before <b>3 losses</b>.</p>
+      <p>Build a wall of units, then fight a ghost of another player's fortress. You earn 5 gold a day (+2 for a win), so choose what to buy and what to upgrade. First fortress to 0 HP loses. Reach <b>10 wins</b> before <b>3 losses</b>.</p>
       <h4>Each day</h4>
       <ul>
         <li><b>Buy packs</b> from the top row, then click a pack on the table to pop its cards.</li>
-        <li><b>Combine</b>: drag a card onto another. If a recipe exists they merge. A ★ means a rare can drop.</li>
+        <li><b>Combine</b>: drag a card onto another. If a recipe exists they merge for gold: 2 for a tier II result, 4 for tier III, 6 for tier IV or a rare. A ★ means a rare can drop.</li>
         <li><b>Eaters</b> (cards with an "ate 0/5" tag) grow when you drop their food on them, and evolve after enough meals.</li>
         <li><b>Wall</b>: drag units into the slots at the bottom. Only wall units fight. Slots grow on days 4 and 7.</li>
         <li><b>Market</b> on the right sells singles. <b>Sell</b> cards top-left. Feed Ember, Bone, Berry, Coin or Stone to the <b>Shrine</b> to unlock track packs.</li>
       </ul>
       <h4>Fights</h4>
-      <p>Units act on their own cooldowns. Shield absorbs damage. Burn deals its stacks every second, then halves. Poison deals its stacks every 2s and never fades. Freeze pauses a unit. From 30s, sudden death hurts both sides more each second.</p>
+      <p>Units act on their own cooldowns. Shield absorbs damage. Burn deals its stacks every 1.5s, then halves. Poison deals its stacks every 3s and never fades; healing doesn't remove either. Freeze pauses a unit. From 45s, sudden death hurts both sides more and more.</p>
       <h4>Controls</h4>
       <p>Drag cards. Drag empty table to pan, scroll to zoom, double-click to reset the view. Hover anything for details.</p>
       <div class="actions"><button class="big-btn ghost" data-newrun>Abandon run</button><button class="big-btn" data-close>Got it</button></div>`);

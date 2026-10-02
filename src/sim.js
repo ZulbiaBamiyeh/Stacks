@@ -4,15 +4,14 @@ import { CARDS, RULES } from './content.js';
 import { createRng } from './rng.js';
 
 export const DT = 0.05;
-const STATUS = ['burn', 'poison', 'sand', 'cold'];
 
 function makeUnit(id, side, slot, perm = 0, summoned = false, extra = {}) {
   const def = CARDS[id];
   return {
     def, id, side, slot, perm, summoned,
-    meals: extra.meals || 0, owned: extra.owned || 0, fires: 0, dealt: 0,
+    meals: extra.meals || 0, owned: extra.owned || 0, fires: 0, dealt: 0, accel: 0, selfBonus: 0,
     bonus: 0, frozen: 0, guard: 0,
-    timers: def.t.map(([cd, ...acts]) => ({ cd, acts, prog: 0 })),
+    timers: def.t.map(([cd, ...acts], i) => ({ cd, acts, prog: def.firstStrike && i === 0 ? cd : 0 })),
     onceDone: false, summons: 0, blessCount: 0, ramp: 0, shots: 0, altIdx: 0, primed: false,
     pulse: 0,
   };
@@ -28,6 +27,8 @@ export function createBattle({ left, right, seed = 1 }) {
     hp: snap.hp,
     shield: 0, burn: 0, poison: 0, sand: 0, heat: 0, cold: 0, luck: 0,
     gold: snap.gold || 0,
+    day: snap.day || 1,
+    lastActed: null,
     units: Array.from({ length: snap.slots }, (_, i) => {
       const c = snap.wall[i];
       return c && CARDS[c.id]?.kind === 'unit' ? makeUnit(c.id, idx, i, c.perm || 0, false, c) : null;
@@ -50,6 +51,9 @@ export function createBattle({ left, right, seed = 1 }) {
     return [S.units[u.slot - 1], S.units[u.slot + 1]].filter(Boolean);
   };
   const owner = (u) => u.owner || u;
+  // Does unit v match a filter like { kin: 'wolf' } or { applies: 'burn' }?
+  const matches = (v, f) => (f.kin ? v.def.kin === f.kin : f.family ? v.def.family === f.family
+    : f.applies ? v.def.t.some((t) => t.slice(1).some((a) => a.k === f.applies)) : true);
   b.roster = [[], []];
   for (const S of sides) for (const u of S.units) if (u) b.roster[S.idx].push(u);
   const has = (S, key) => alive(S).some((u) => u.def[key]);
@@ -62,9 +66,13 @@ export function createBattle({ left, right, seed = 1 }) {
       if (S.hp < S.maxHp * 0.5) haste += sum(S, 'lowCreatureHaste');
     }
     for (const v of neighbours(u)) haste += v.def.auraHaste || 0;
+    const empty = S.units.filter((v) => !v).length;
+    haste += sum(S, 'emptyHaste') * empty;
+    if (u.def.burningHaste && sides[1 - u.side].burn > 0) haste += u.def.burningHaste;
     haste = Math.min(0.5, haste);
-    const heatNet = Math.max(-0.5, Math.min(0.5, (S.heat - S.cold) * 0.02));
-    return Math.max(0.1, 1 + haste + heatNet);
+    let heatNet = Math.max(-0.5, Math.min(0.5, (S.heat - S.cold) * 0.02));
+    if (u.def.noCold) heatNet = Math.max(0, heatNet);
+    return Math.max(0.1, 1 + haste + heatNet + u.accel);
   }
   b.speed = speed;
 
@@ -83,9 +91,24 @@ export function createBattle({ left, right, seed = 1 }) {
 
   function num(u, act, scale) {
     const S = sides[u.side];
-    let n = act.n + (!act.fixed && act.k === u.def.main ? u.bonus + u.perm : 0);
-    if (!act.fixed) for (const v of neighbours(u)) if (v.def.aura && v.def.aura.k === act.k) n += v.def.aura.n;
-    if (act.ramp) n += Math.min(act.ramp, Math.max(0, u.fires - 1));
+    const E = sides[1 - u.side];
+    let n = act.n;
+    if (act.fixed) return n;
+    if (act.k === u.def.main) n += u.bonus + u.perm + u.selfBonus;
+    for (const v of neighbours(u)) if (v.def.aura && v.def.aura.k === act.k) n += v.def.aura.n;
+    if (act.ramp) n += Math.min(act.ramp, Math.max(0, u.fires - 1)) * (act.rampStep || 1);
+    if (act.perEnemy) n += Math.floor(E[act.perEnemy[0]] / act.perEnemy[1]);
+    if (act.ifEnemy && E[act.ifEnemy[0]] > 0) n += act.ifEnemy[1];
+    if (act.perShield) n += Math.floor(S.shield / act.perShield);
+    if (act.perMissing) n += Math.floor(Math.max(0, S.maxHp - S.hp) / act.perMissing);
+    if (act.perDay) n += Math.floor(S.day * act.perDay);
+    if (act.perAlly) n += alive(S).filter((v) => v !== u && matches(v, act.perAlly)).length * act.perAlly.n;
+    if (act.perFrozen) n += alive(E).filter((v) => v.frozen > 0).length * act.perFrozen;
+    if (act.nth && u.fires % act.nth === 0) n *= act.nthMult;
+    if (act.firstMult && u.fires === 1) n *= act.firstMult;
+    if (act.edge && (!S.units[u.slot - 1] || !S.units[u.slot + 1])) n *= act.edge;
+    if (act.execute && E.hp < E.maxHp * 0.5) n *= act.execute;
+    if (act.vsShield && E.shield > 0) n *= act.vsShield;
     const low = u.def.lowHp;
     if (low && low.k === act.k && S.hp < S.maxHp * low.below) n *= low.mult;
     if (scale !== 1) n = n > 0 ? Math.max(1, Math.round(n * scale)) : 0;
@@ -109,9 +132,16 @@ export function createBattle({ left, right, seed = 1 }) {
     }
     T.hp -= n;
     emit({ type: 'dmg', side: T.idx, amount: n, absorbed, src: ref(src), crit, kind, pierce });
-    if (absorbed > 0 && src && !reflect) {
+    if (absorbed > 0 && src && !reflect && src.side !== T.idx) {
       const thorns = sum(T, 'thorns');
       if (thorns > 0) dealDamage(sides[1 - T.idx], thorns, { kind: 'thorns', reflect: true });
+      for (const v of alive(T)) if (v.def.onShieldHit) for (const a of v.def.onShieldHit) doAct(v, { ...a, trigger: true }, 1);
+    }
+    if (src && !reflect && src.side !== T.idx) {
+      for (const v of alive(T)) {
+        const bh = v.def.onBigHit;
+        if (bh && n + absorbed >= bh.min) for (const a of bh.acts) doAct(v, { ...a, trigger: true }, 1);
+      }
     }
   }
 
@@ -127,10 +157,10 @@ export function createBattle({ left, right, seed = 1 }) {
     S.hp = Math.min(S.maxHp, S.hp + n);
     const over = n - (S.hp - before);
     if (over > 0 && has(S, 'overheal')) gainShield(S, over, src);
-    for (const k of STATUS) if (S[k] > 0) S[k] -= Math.max(1, Math.ceil(S[k] * 0.1));
     S.healLog.push([b.t, n]);
     emit({ type: 'heal', side: S.idx, amount: n, src: ref(src) });
     for (const v of alive(S)) if (v.def.onHeal) for (const a of v.def.onHeal) doAct(v, a, 1);
+    for (const v of alive(sides[1 - S.idx])) if (v.def.onEnemyHeal) for (const a of v.def.onEnemyHeal) doAct(v, { ...a, trigger: true }, 1);
   }
 
   function attack(u, act, scale) {
@@ -139,18 +169,15 @@ export function createBattle({ left, right, seed = 1 }) {
     if (!act.trigger && missed(u)) return;
     let n = num(u, act, scale);
     if (act.perGold) n += Math.floor(S.gold / act.perGold);
-    if (act.perMissing) n += Math.floor(Math.max(0, S.maxHp - S.hp) / act.perMissing);
-    if (act.perEnemy) n += Math.floor(E[act.perEnemy[0]] / act.perEnemy[1]);
     if (act.perOwned) n += Math.min(act.perOwned, u.owned);
     if (act.goldMult) n = S.gold * act.goldMult;
     if (act.goldFrac) n = Math.min(act.max || Infinity, Math.floor(S.gold * act.goldFrac));
     if (act.shieldFrac) n = Math.floor(S.shield * act.shieldFrac);
     if (act.spendShield) { n = S.shield; S.shield = 0; }
     if (act.healFrac) {
-      const healed = S.healLog.filter(([t]) => t > b.t - 4).reduce((a, [, h]) => a + h, 0);
+      const healed = S.healLog.filter(([t]) => t > b.t - 4 * RULES.time).reduce((a, [, h]) => a + h, 0);
       n = Math.floor(healed * act.healFrac);
     }
-    if (act.nth) { u.shots += 1; if (u.shots % act.nth === 0) n *= act.nthMult; }
     if (u.def.tags.includes('creature')) {
       for (const v of alive(S)) if (v !== u && v.def.alpha) n += v.def.alpha;
     }
@@ -161,7 +188,10 @@ export function createBattle({ left, right, seed = 1 }) {
       if (u.primed) { crit = true; u.primed = false; n *= 3; }
       else if (S.luck > 0 && rng.chance(Math.min(0.6, S.luck * 0.02))) { crit = true; n *= u.def.critMult || 2; }
     }
-    dealDamage(E, n, { pierce: !!act.pierce, src: u, crit });
+    const hits = (act.hits || 1) * (act.twiceNoShield && E.shield <= 0 ? 2 : 1);
+    for (let i = 0; i < hits; i++) dealDamage(E, n, { pierce: !!act.pierce, src: u, crit });
+    if (act.shieldGain) gainShield(S, act.shieldGain, u);
+    if (act.delay) delayUnit(u, act.delay.target || 'random', act.delay.s);
     if (crit) {
       emit({ type: 'crit', src: ref(u) });
       for (const v of alive(S)) if (v.def.onCrit) for (const a of v.def.onCrit) doAct(v, a, 1);
@@ -180,6 +210,8 @@ export function createBattle({ left, right, seed = 1 }) {
     if (target === 'random') {
       const fresh = pool.filter((v) => v.frozen <= 0);
       picks = [rng.pick(fresh.length ? fresh : pool)];
+    } else if (target === 'last') {
+      picks = [E.lastActed && pool.includes(E.lastActed) ? E.lastActed : rng.pick(pool)];
     } else if (target === 'fastest') {
       const cd = (v) => Math.min(...v.timers.map((t) => t.cd), 99);
       pool.sort((a, c) => cd(a) - cd(c) || a.slot - c.slot);
@@ -199,6 +231,18 @@ export function createBattle({ left, right, seed = 1 }) {
   function chargeUnit(v, s, src) {
     for (const t of v.timers) t.prog = Math.min(t.cd, t.prog + s);
     emit({ type: 'charge', src: ref(src), target: ref(v), amount: s });
+  }
+
+  // Push back an enemy unit's cooldowns.
+  function delayUnit(u, target, s) {
+    const E = sides[1 - u.side];
+    const pool = alive(E).filter((v) => v.timers.length);
+    if (!pool.length) return;
+    let v;
+    if (target === 'slowest') v = pool.sort((a, c) => Math.max(...c.timers.map((t) => t.cd)) - Math.max(...a.timers.map((t) => t.cd)))[0];
+    else v = rng.pick(pool);
+    for (const t of v.timers) t.prog = Math.max(0, t.prog - s);
+    emit({ type: 'delay', src: ref(u), target: ref(v), amount: s });
   }
 
   function pickFriend(S, filter, avoid) {
@@ -289,6 +333,63 @@ export function createBattle({ left, right, seed = 1 }) {
       E.poisonSrc.set(owner(u), (E.poisonSrc.get(owner(u)) || 0) + give);
       emit({ type: 'status', side: E.idx, kind: 'poison', amount: give, src: ref(u) });
     },
+    rally(u, act) {
+      const S = sides[u.side];
+      for (const v of alive(S)) {
+        if (v === u || !matches(v, act)) continue;
+        if (act.max && (v.rallied || 0) >= act.max) continue;
+        v.rallied = (v.rallied || 0) + act.n;
+        v.bonus += act.n;
+        emit({ type: 'bless', src: ref(u), target: ref(v) });
+      }
+    },
+    pack(u, act) {
+      const S = sides[u.side];
+      const count = Math.min(act.max, alive(S).filter((v) => v.def.kin === 'wolf').length);
+      for (let i = 0; i < count; i++) attack(u, { k: 'dmg', n: act.n }, 1);
+    },
+    pay(u, act) {
+      const S = sides[u.side];
+      if (S.hp <= act.hp) return;
+      S.hp -= act.hp;
+      emit({ type: 'dmg', side: S.idx, amount: act.hp, absorbed: 0, src: null, kind: 'sudden' });
+      attack(u, { k: 'dmg', n: act.dmg }, 1);
+    },
+    myco(u) {
+      const S = sides[u.side];
+      const n = Math.floor(sides[1 - u.side].poison / 2) + u.bonus + u.perm;
+      if (n > 0) doHeal(S, n, u);
+    },
+    bark(u, act) {
+      const S = sides[u.side];
+      gainShield(S, act.n + Math.floor((S.maxHp - S.hp) * act.frac) + u.bonus + u.perm, u);
+    },
+    wisp(u) {
+      const S = sides[u.side];
+      const E = sides[1 - u.side];
+      if (missed(u)) return;
+      const pool = alive(E).filter((v) => !v.def.noFreeze && v.guard <= 0 && v.timers.length);
+      if (!pool.length) return;
+      const v = rng.pick(pool);
+      const dur = 1.5 * (has(S, 'freezeMult') ? 1.5 : 1);
+      v.frozen = Math.max(v.frozen, dur);
+      emit({ type: 'freeze', src: ref(u), target: ref(v), dur });
+      doAct(u, { k: 'burn', n: v.def.tier * 2, fixed: true, trigger: true }, 1);
+    },
+    breakShield(u, act) {
+      const E = sides[1 - u.side];
+      if (E.shield <= 0 || missed(u)) return;
+      const n = Math.min(E.shield, act.n);
+      E.shield -= n;
+      emit({ type: 'dmg', side: E.idx, amount: 0, absorbed: n, src: ref(u), kind: 'dmg' });
+    },
+    tickBurn(u) {
+      const E = sides[1 - u.side];
+      if (E.burn > 0) tickBurn(E);
+    },
+    selfBonus(u, act) {
+      if (u.selfBonus < act.max) u.selfBonus += 1;
+    },
     sandworm(u, act) {
       const E = sides[1 - u.side];
       const stacks = E.sand;
@@ -312,20 +413,22 @@ export function createBattle({ left, right, seed = 1 }) {
       case 'heal': {
         const n = num(u, act, scale);
         doHeal(S, n, u);
+        if (act.shieldToo) gainShield(S, act.shieldToo, u);
         if (act.dmgFrac) dealDamage(E, Math.floor(n * act.dmgFrac), { src: u });
         return;
       }
       case 'burn': {
         if (act.ifShield && S.shield <= 0) return;
-        if (missed(u)) return;
+        if (!act.trigger && missed(u)) return;
         let n = num(u, act, scale);
+        if (n <= 0) return;
         E.burn += n;
         E.burnSrc.set(owner(u), (E.burnSrc.get(owner(u)) || 0) + n);
         emit({ type: 'status', side: E.idx, kind: 'burn', amount: n, src: ref(u) });
         return;
       }
       case 'poison': {
-        if (missed(u)) return;
+        if (!act.trigger && missed(u)) return;
         let n = num(u, act, scale);
         if (act.pct) n = Math.max(act.min || 0, Math.min(act.max || Infinity, Math.floor(E.poison * act.pct))) + u.bonus + u.perm;
         if (act.per10) n += Math.floor(E.poison / (act.perN || 10)) * act.per10;
@@ -336,6 +439,7 @@ export function createBattle({ left, right, seed = 1 }) {
         return;
       }
       case 'freeze':
+        if (act.chance && !rng.chance(act.chance)) return;
         if (missed(u)) return;
         return freezeTargets(u, act.target, act.dur * scale);
       case 'sand': {
@@ -370,8 +474,15 @@ export function createBattle({ left, right, seed = 1 }) {
         emit({ type: 'summon', side: S.idx, slot, id: act.id, src: ref(u) });
         return;
       }
+      case 'delay':
+        if (missed(u)) return;
+        return delayUnit(u, act.target, act.s);
       case 'charge': {
         let v;
+        if (act.target === 'neighbours') {
+          for (const w of neighbours(u)) if (w.timers.length) chargeUnit(w, act.s, u);
+          return;
+        }
         if (act.target === 'top') {
           const pool = alive(S).filter((w) => w.timers.length && w !== u).sort((a, c) => c.def.tier - a.def.tier || a.slot - c.slot);
           v = pool[0];
@@ -392,8 +503,11 @@ export function createBattle({ left, right, seed = 1 }) {
     const S = sides[u.side];
     u.pulse = 1;
     u.fires += 1;
+    S.lastActed = u;
+    if (u.def.accel) u.accel = Math.min(u.def.accel.max, u.accel + u.def.accel.per);
     emit({ type: 'act', src: ref(u) });
     for (const a of acts) doAct(u, a, 1);
+    for (const v of neighbours(u)) if (v.def.onNeighbourAct) for (const a of v.def.onNeighbourAct) doAct(v, { ...a, trigger: true }, 1);
     const right = S.units[u.slot + 1];
     if (right && right.def.mirror && !u.def.mirror) {
       const proxy = Object.create(u);
@@ -436,6 +550,7 @@ export function createBattle({ left, right, seed = 1 }) {
     creditTick(S, S.poisonSrc, S.poison);
     dealDamage(S, S.poison, { kind: 'poison', pierce: true });
     emit({ type: 'tick', side: S.idx, kind: 'poison', amount: S.poison, left: S.poison });
+    for (const v of alive(sides[1 - S.idx])) if (v.def.onEnemyPoisonTick) for (const a of v.def.onEnemyPoisonTick) doAct(v, { ...a, trigger: true }, 1);
   }
 
   function checkDeath(S) {
@@ -472,6 +587,7 @@ export function createBattle({ left, right, seed = 1 }) {
       emit({ type: 'status', side: E.idx, kind: se.k, amount: n, src: ref(u) });
     }
     for (const u of alive(S)) for (let i = 0; i < (u.def.startBless || 0); i++) blessOnce(u);
+    for (const u of alive(S)) if (u.def.startNeighbourBonus) for (const v of neighbours(u)) v.bonus += u.def.startNeighbourBonus;
   }
 
   b.step = function step(dt = DT) {
@@ -483,10 +599,11 @@ export function createBattle({ left, right, seed = 1 }) {
         u.pulse = Math.max(0, u.pulse - dt * 4);
         if (u.frozen > 0) {
           u.frozen -= dt;
-          if (u.frozen <= 0) { u.frozen = 0; u.guard = 1; emit({ type: 'thaw', target: ref(u) }); }
+          if (u.frozen <= 0) { u.frozen = 0; u.guard = RULES.freezeGuard; emit({ type: 'thaw', target: ref(u) }); }
           continue;
         }
         if (u.guard > 0) u.guard -= dt;
+        if (u.def.ahead && S.hp / S.maxHp <= sides[1 - S.idx].hp / sides[1 - S.idx].maxHp) continue;
         const sp = speed(u);
         for (const t of u.timers) {
           t.prog += dt * sp;
@@ -497,16 +614,16 @@ export function createBattle({ left, right, seed = 1 }) {
     }
     for (const S of sides) {
       S.burnClock += dt;
-      if (S.burnClock >= 1) { S.burnClock -= 1; tickBurn(S); }
+      if (S.burnClock >= RULES.burnTick) { S.burnClock -= RULES.burnTick; tickBurn(S); }
       S.poisonClock += dt;
-      if (S.poisonClock >= 2) { S.poisonClock -= 2; tickPoison(S); }
+      if (S.poisonClock >= RULES.poisonTick) { S.poisonClock -= RULES.poisonTick; tickPoison(S); }
       if (S.healLog.length > 40) S.healLog.splice(0, S.healLog.length - 40);
       if (S.dmgLog.length > 80) S.dmgLog.splice(0, S.dmgLog.length - 80);
     }
     if (b.t >= RULES.suddenDeath) {
       b.suddenClock += dt;
-      if (b.suddenClock >= 1) {
-        b.suddenClock -= 1;
+      if (b.suddenClock >= RULES.suddenTick) {
+        b.suddenClock -= RULES.suddenTick;
         b.suddenK += 1;
         for (const S of sides) dealDamage(S, b.suddenK, { kind: 'sudden', pierce: true });
       }
@@ -517,7 +634,7 @@ export function createBattle({ left, right, seed = 1 }) {
       if (dead[0] && dead[1]) b.winner = sides[0].hp > sides[1].hp ? 0 : 1;
       else b.winner = dead[0] ? 1 : 0;
       emit({ type: 'end', winner: b.winner });
-    } else if (b.t > 120) {
+    } else if (b.t > 180) {
       b.over = true;
       b.winner = sides[0].hp / sides[0].maxHp > sides[1].hp / sides[1].maxHp ? 0 : 1;
       emit({ type: 'end', winner: b.winner });

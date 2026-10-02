@@ -399,7 +399,9 @@ export function cardStats(def, perm = 0) {
         if (!NUMERIC.includes(a.k) || seen.has(a.k)) continue;
         seen.add(a.k);
         let n = a.k === 'freeze' ? `${a.dur}s` : a.n + (a.k === def.main ? perm : 0);
-        if (a.k !== 'freeze' && (a.pct || a.perGold || a.goldFrac || a.goldMult || a.shieldFrac || a.spendShield || a.healFrac)) n = a.n ? `${n}+` : '*';
+        const grows = ['pct', 'perGold', 'goldFrac', 'goldMult', 'shieldFrac', 'spendShield', 'healFrac', 'ramp', 'perAlly', 'perEnemy', 'ifEnemy',
+          'perShield', 'perMissing', 'perDay', 'perFrozen', 'perOwned'].some((k) => a[k]);
+        if (a.k !== 'freeze' && (grows || a.n === 0)) n = a.n ? `${n}+` : '*';
         stats.push({ k: a.k, n });
       }
     }
