@@ -1124,18 +1124,25 @@ ui.setSound(sfx.muted);
 $('btn-sound').addEventListener('click', () => ui.setSound(sfx.toggle()));
 function bindModal(el) {
   el?.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => ui.modal(null)));
-  el?.querySelector('[data-newrun]')?.addEventListener('click', () => {
-    if (mode !== 'shop') { ui.modal(null); return; }
-    newRun();
-  });
+  el?.querySelector('[data-newgame]')?.addEventListener('click', () => bindModal(ui.confirmNewGame(S)));
+  el?.querySelector('[data-confirm-new]')?.addEventListener('click', () => newRun());
+  el?.querySelector('[data-help]')?.addEventListener('click', () => bindModal(ui.help()));
+  el?.querySelector('[data-ideas]')?.addEventListener('click', () => bindModal(ui.ideas(codex)));
+  el?.querySelector('[data-sound]')?.addEventListener('click', () => { ui.setSound(sfx.toggle()); openMenu(); });
 }
+// New game is only offered between fights, so a battle never gets cut off midway.
+const openMenu = () => bindModal(ui.menu(S, { canRestart: mode === 'shop' || mode === 'over', muted: sfx.muted }));
+$('btn-menu').addEventListener('click', openMenu);
 $('btn-ideas').addEventListener('click', () => bindModal(ui.ideas(codex)));
 $('btn-help').addEventListener('click', () => bindModal(ui.help()));
 $('modal').addEventListener('pointerdown', (e) => {
   if (e.target.id === 'modal' && !e.target.querySelector('[data-continue],[data-new]')) ui.modal(null);
 });
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !$('modal').querySelector('[data-continue],[data-new]')) ui.modal(null);
+  if (e.key === 'Escape' && !$('modal').querySelector('[data-continue],[data-new]')) {
+    if ($('modal').hidden) openMenu();
+    else ui.modal(null);
+  }
   if (e.key === 'f' && mode === 'shop' && $('modal').hidden) startFight();
 });
 

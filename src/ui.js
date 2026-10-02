@@ -220,8 +220,29 @@ export function createUI() {
       <p>Units act on their own cooldowns. Shield absorbs damage. Burn deals its stacks every 1.5s, then halves. Poison deals its stacks every 3s and never fades; healing doesn't remove either. Freeze pauses a unit. From 45s, sudden death hurts both sides more and more.</p>
       <h4>Controls</h4>
       <p>Drag cards. Drag empty table to pan, scroll to zoom, double-click to reset the view. Hover anything for details.</p>
-      <div class="actions"><button class="big-btn ghost" data-newrun>Abandon run</button><button class="big-btn" data-close>Got it</button></div>`);
+      <div class="actions"><button class="big-btn" data-close>Got it</button></div>`);
   }
 
-  return { hud, cardInfo, packInfo, info, hint, toast, banner, hideBanner, modal, battleStart, battleUpdate, battleEnd, flashStatus, breakdown, setSpeed, setSound, ideas, help, ico, esc };
+  function menu(s, { canRestart = true, muted = false } = {}) {
+    return modal(`
+      <h2>Menu</h2>
+      <p class="muted">Day ${s.day} · ${s.wins} wins, ${s.losses} losses · ${s.gold} gold</p>
+      <div class="menu-list">
+        <button class="big-btn" data-close type="button">Resume</button>
+        <button class="big-btn red" data-newgame type="button" ${canRestart ? '' : 'disabled'}>New game</button>
+        ${canRestart ? '' : '<p class="muted small">Finish this fight first.</p>'}
+        <button class="big-btn ghost-dark" data-help type="button">How to play</button>
+        <button class="big-btn ghost-dark" data-ideas type="button">Ideas</button>
+        <button class="big-btn ghost-dark" data-sound type="button">Sound: ${muted ? 'off' : 'on'}</button>
+      </div>`);
+  }
+
+  function confirmNewGame(s) {
+    return modal(`
+      <h2>Start a new game?</h2>
+      <p>Your current run (day ${s.day}, ${s.wins}–${s.losses}) will be lost. Recipes you've discovered are kept.</p>
+      <div class="actions"><button class="big-btn ghost" data-close type="button">Cancel</button><button class="big-btn red" data-confirm-new type="button">Start new game</button></div>`);
+  }
+
+  return { menu, confirmNewGame, hud, cardInfo, packInfo, info, hint, toast, banner, hideBanner, modal, battleStart, battleUpdate, battleEnd, flashStatus, breakdown, setSpeed, setSound, ideas, help, ico, esc };
 }

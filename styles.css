@@ -465,3 +465,9 @@ button {
   .fort .row { font-size: 13px; }
   .battle-ctl { left: 12px; right: 12px; justify-content: flex-end; }
 }
+
+.menu-list { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.menu-list .big-btn { width: 100%; }
+.big-btn:disabled { opacity: 0.45; cursor: default; }
+.big-btn.ghost-dark { background: var(--paper-deep); color: var(--ink); box-shadow: 0 3px 0 rgba(42, 36, 28, 0.35); }
+.big-btn.ghost-dark:hover { background: #e0d2ae; }
