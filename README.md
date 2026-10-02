@@ -74,3 +74,13 @@ Cards without art fall back to placeholder doodles.
 
 Runs are saved in `localStorage`, along with discovered recipes and the ghost
 pool (your own past walls, which later runs can face).
+
+## Fight readouts
+
+Fights use Bazaar-style health bars: a wide bar behind each wall with the HP
+number large in the middle, shield as a gold strip on top, and burn and poison
+at the end. Hits, burn, poison, heals and shield add up in counters beside the
+bar (`src/gfx/fortress.js`).
+
+The Footman Frenzy style unit-battle mode is parked on the
+`claude/unit-battle-prototype` branch.
