@@ -60,14 +60,15 @@ export function botGhost(day, wins = 0, losses = 0, r = createRng(day * 7919)) {
   const slots = wallSlots(day);
   const fill = Math.min(slots, day <= 1 ? 2 + r.int(2) : day <= 3 ? 3 + r.int(2) : slots - r.int(2));
   const arch = r.pick(Object.keys(ARCHETYPES));
-  const units = Object.values(CARDS).filter((c) => c.kind === 'unit' && !c.track && !(c.rare && day < 7) && c.id !== 'mirror');
+  const units = Object.values(CARDS).filter((c) => c.kind === 'unit' && !(c.track && day < 4) && !(c.rare && day < 7) && c.id !== 'mirror' && !c.chest && !c.shopSlot);
   const wall = Array(slots).fill(null);
   for (let i = 0; i < fill; i++) {
     const tier = r.weighted(TIER_BY_DAY(day));
     const themed = ARCHETYPES[arch].map((id) => CARDS[id]).filter((c) => c.tier === tier);
     const pool = themed.length && r.chance(0.65) ? themed : units.filter((c) => c.tier === tier);
     const def = r.pick(pool.length ? pool : units);
-    wall[i] = { id: def.id, perm: def.perm ? Math.floor((day - 1) / 2) : 0 };
+    const meals = def.eats ? Math.min(14, day * 2) : 0;
+    wall[i] = { id: def.id, perm: (def.perm ? Math.floor((day - 1) / 2) : 0) + Math.floor(meals / (def.eats?.per || 1)), meals, owned: Math.floor(day / 2) };
   }
   // Shuffle into slots so empty spaces vary.
   for (let i = wall.length - 1; i > 0; i--) {

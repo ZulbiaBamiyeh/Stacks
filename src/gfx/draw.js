@@ -429,7 +429,7 @@ const ART_TINT = {
   bless: '#f8eec6', luck: '#e3f0d6', freeze: '#dbf0f8', heat: '#fbe0bf',
 };
 
-export function drawCard(def, { perm = 0, art = null, summon = false } = {}) {
+export function drawCard(def, { perm = 0, art = null, summon = false, meals = 0 } = {}) {
   const { w, h } = CARD_PX;
   const cv = canvas(w, h);
   const ctx = cv.getContext('2d');
@@ -504,6 +504,25 @@ export function drawCard(def, { perm = 0, art = null, summon = false } = {}) {
         for (const [x, y, s] of [[-108, -84, 30], [104, -96, 24], [112, 70, 20], [-112, 88, 18]]) glyph(ctx, 'bless', cx + x, cy + y, s);
       }
     }
+  }
+
+  // Hunger pill for eaters: meals eaten and the next evolution.
+  if (def.eats) {
+    const ev = def.eats.evolve;
+    const label = ev ? `ate ${meals}/${ev[0]}` : `ate ${meals}`;
+    ctx.font = font(26, 900);
+    const tw = ctx.measureText(label).width;
+    const pw = tw + 64;
+    const px = w / 2 - pw / 2;
+    const py = HEAD + 14;
+    ctx.fillStyle = INK;
+    rrect(ctx, px, py, pw, 40, 20);
+    ctx.fill();
+    glyph(ctx, def.eats.foods[0], px + 24, py + 20, 30);
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, px + 44, py + 22);
   }
 
   // Bottom badges

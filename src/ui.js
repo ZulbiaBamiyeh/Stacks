@@ -42,7 +42,11 @@ export function createUI() {
       ? 'Ingredient'
       : `${d.rare ? '<span class="rare-tag">★ Rare</span> · ' : ''}Tier ${ROMAN[d.tier]} ${d.track ? 'track unit' : 'unit'}${d.tags?.includes('creature') ? ' · creature' : ''}`;
     const stats = d.kind === 'unit' ? cardStats(d, inst?.perm || 0).map((st) => `<span>${ico(st.k)}${esc(st.n)}</span>`).join('') : '';
-    const perm = inst?.perm ? `<p class="muted">Grown +${inst.perm} from past fights.</p>` : '';
+    const meals = inst?.meals || 0;
+    const ev = d.eats?.evolve;
+    const eater = d.eats ? `<p><b>Eats</b> ${d.eats.foods.map((f) => `${ico(f)} ${esc(nameOf(f))}`).join(', ')} (drop them on it). Eaten ${meals}${ev ? `, evolves into <b>${esc(nameOf(ev[1]))}</b> at ${ev[0]}` : ''}.</p>` : '';
+    const grown = (inst?.perm || 0) - Math.floor(meals / (d.eats?.per || 1));
+    const perm = (grown > 0 ? `<p class="muted">Grown +${grown} from past fights.</p>` : '') + eater;
     const uses = [...RECIPES.values()].filter((r) => r.a === id || r.b === id);
     const known = uses.filter((r) => codex.has(`${r.a}+${r.b}`));
     const recipes = uses.length
@@ -133,10 +137,21 @@ export function createUI() {
       el.querySelector('.lag').style.width = `${p * 100}%`;
       el.querySelector('.shield').style.width = `${Math.min(1, S.shield / S.maxHp) * 100}%`;
       el.querySelector('.hp-num').innerHTML = `${S.shield > 0 ? `${ico('shield')}${S.shield}` : ''} ${ico('heal')}${Math.max(0, Math.ceil(S.hp))}/${S.maxHp}`;
-      const st = STATUS_KEYS.filter(([k]) => S[k] > 0).map(([k, icon]) => `<span class="status">${ico(icon)}${S[k]}</span>`).join('');
-      if (st !== lastStatus[S.idx]) {
-        el.querySelector('.statuses').innerHTML = st;
-        lastStatus[S.idx] = st;
+      // Status chips say what the stacks will do, not just how many there are.
+      const tip = {
+        burn: () => `<small>−${S.burn} next s</small>`,
+        poison: () => `<small>−${S.poison} / 2s</small>`,
+        sand: () => `<small>${Math.min(45, S.sand * 3)}% miss</small>`,
+        cold: () => `<small>−${Math.min(50, S.cold * 2)}% speed</small>`,
+        heat: () => `<small>+${Math.min(50, S.heat * 2)}% speed</small>`,
+        luck: () => `<small>${Math.min(60, S.luck * 2)}% crit</small>`,
+      };
+      const recent = S.dmgLog.filter(([t]) => t > b.t - 3).reduce((a, [, n]) => a + n, 0) / Math.min(3, Math.max(1, b.t));
+      const st = STATUS_KEYS.filter(([k]) => S[k] > 0).map(([k, icon]) => `<span class="status s-${k}">${ico(icon)}${S[k]} ${tip[k]()}</span>`).join('');
+      const html = st + (recent >= 1 ? `<span class="status rate">taking ${Math.round(recent)}/s</span>` : '');
+      if (html !== lastStatus[S.idx]) {
+        el.querySelector('.statuses').innerHTML = html;
+        lastStatus[S.idx] = html;
       }
     }
     const c = $('battle-clock');
@@ -144,6 +159,28 @@ export function createUI() {
     c.textContent = sudden ? `Sudden death ${b.suddenK}` : `${b.t.toFixed(1)}s`;
     c.classList.toggle('sudden', sudden);
   }
+  function flashStatus(side, kind) {
+    const chip = forts[side].querySelector(`.s-${kind}`);
+    if (!chip) return;
+    chip.classList.remove('flash');
+    void chip.offsetWidth;
+    chip.classList.add('flash');
+  }
+
+  // Post-fight: who did the damage, on both sides.
+  function breakdown(bd) {
+    if (!bd) return '';
+    const col = (side, title) => {
+      const d = bd[side];
+      const max = Math.max(1, ...d.units.map((u) => u.dealt));
+      const rows = d.units.map((u) => `<div class="dmg-row"><span class="nm">${esc(nameOf(u.id))}${u.n > 1 ? ` ×${u.n}` : ''}</span><span class="bar-mini"><i style="width:${(u.dealt / max) * 100}%"></i></span><b>${u.dealt}</b></div>`).join('');
+      const t = bd[1 - side].taken;
+      const ticks = [['burn', t.burn], ['poison', t.poison], ['thorns', t.thorns]].filter(([, n]) => n > 0).map(([k, n]) => `${k === 'thorns' ? 'thorns' : ico(k)} ${Math.round(n)}`).join(' · ');
+      return `<div class="dmg-col"><h4>${title}</h4>${rows || '<div class="muted">No damage</div>'}${ticks ? `<div class="muted small">of which ticks: ${ticks}</div>` : ''}</div>`;
+    };
+    return `<div class="dmg-cols">${col(0, 'Your damage')}${col(1, 'Their damage')}</div><p class="muted small">Fight lasted ${bd[0].time.toFixed(1)}s. Burn and poison tick damage is credited to the units that applied it.</p>`;
+  }
+
   function battleEnd() {
     $('battle-hud').hidden = true;
   }
@@ -175,15 +212,16 @@ export function createUI() {
       <ul>
         <li><b>Buy packs</b> from the top row, then click a pack on the table to pop its cards.</li>
         <li><b>Combine</b>: drag a card onto another. If a recipe exists they merge. A ★ means a rare can drop.</li>
+        <li><b>Eaters</b> (cards with an "ate 0/5" tag) grow when you drop their food on them, and evolve after enough meals.</li>
         <li><b>Wall</b>: drag units into the slots at the bottom. Only wall units fight. Slots grow on days 4 and 7.</li>
         <li><b>Market</b> on the right sells singles. <b>Sell</b> cards top-left. Feed Ember, Bone, Berry, Coin or Stone to the <b>Shrine</b> to unlock track packs.</li>
       </ul>
       <h4>Fights</h4>
-      <p>Units act on their own cooldowns. Shield absorbs damage, burn ticks down, poison never decays, freeze pauses a unit. From 30s, sudden death hurts both sides more each second.</p>
+      <p>Units act on their own cooldowns. Shield absorbs damage. Burn deals its stacks every second, then halves. Poison deals its stacks every 2s and never fades. Freeze pauses a unit. From 30s, sudden death hurts both sides more each second.</p>
       <h4>Controls</h4>
       <p>Drag cards. Drag empty table to pan, scroll to zoom, double-click to reset the view. Hover anything for details.</p>
       <div class="actions"><button class="big-btn ghost" data-newrun>Abandon run</button><button class="big-btn" data-close>Got it</button></div>`);
   }
 
-  return { hud, cardInfo, packInfo, info, hint, toast, banner, hideBanner, modal, battleStart, battleUpdate, battleEnd, setSpeed, setSound, ideas, help, ico, esc };
+  return { hud, cardInfo, packInfo, info, hint, toast, banner, hideBanner, modal, battleStart, battleUpdate, battleEnd, flashStatus, breakdown, setSpeed, setSound, ideas, help, ico, esc };
 }

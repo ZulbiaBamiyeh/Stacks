@@ -1,6 +1,6 @@
 // Stackbrawl: game controller. Wires run state, the 3D table, input and fights.
 import * as THREE from 'three';
-import { CARDS, PACKS, TRACKS, RULES, wallSlots, fortressHp } from './content.js';
+import { CARDS, PACKS, TRACKS, RULES, wallSlots, fortressHp, eats } from './content.js';
 import * as R from './run.js';
 import { createBattle, DT } from './sim.js';
 import { fetchGhost, submitGhost } from './ghosts.js';
@@ -44,6 +44,7 @@ let marketViews = [];
 const combos = [];
 const timers = [];
 let bv = [[], []]; // battle card views per side/slot
+const leaving = new Set(); // cards animating out (fed to the shrine, eaten)
 const later = (sec, fn) => timers.push({ t: sec, fn });
 
 const HOME = { x: 0, z: 0.15, w: 19.4, h: 13.0 };
@@ -155,7 +156,7 @@ function syncMarket() {
 // ------------------------------------------------------------------ card views
 
 function makeView(inst, x, z) {
-  const v = new CardView(scene, { id: inst.id, inst, perm: inst.perm });
+  const v = new CardView(scene, { id: inst.id, inst, perm: inst.perm, meals: inst.meals || 0 });
   v.place(x, z);
   views.set(inst.uid, v);
   return v;
@@ -177,7 +178,7 @@ function syncViews() {
     let v = views.get(inst.uid);
     if (!v) v = makeView(inst, h.x, h.z);
     v.inst = inst;
-    if (v.perm !== inst.perm || v.id !== inst.id) v.setFace(inst.id, inst.perm);
+    if (v.perm !== inst.perm || v.id !== inst.id || v.meals !== (inst.meals || 0)) v.setFace(inst.id, inst.perm, inst.meals || 0);
     if (!v.dragging && !v.busy && !v.flight) v.moveTo(h.x, h.z);
   }
   for (const [uid, v] of views) {
@@ -328,6 +329,7 @@ function evalDrop(v, x, z) {
       }
     }
     if (best) {
+      if (eats(best.w.id, v.id)) return { kind: 'eat', target: best.w };
       const info = R.combineInfo(S, v.id, best.w.id);
       if (info) return { kind: 'card', target: best.w, info };
     }
@@ -354,6 +356,14 @@ function dropHint(d, v) {
     let s = known ? `→ <b>${ui.esc(CARDS[d.info.result].name)}</b>` : '✦ A new combination!';
     if (d.info.rare) s += ` <span class="rare">★ ${d.info.chance}% ${rareKnown ? ui.esc(CARDS[d.info.rare].name) : 'rare'}</span>`;
     return [s, false];
+  }
+  if (d.kind === 'eat') {
+    const e = R.eatInfo(d.target.id, d.target.inst?.meals || 0);
+    const per = d.target.def.eats.per || 1;
+    const meals = d.target.inst?.meals || 0;
+    const stat = { burn: 'burn', poison: 'poison', heal: 'heal', dmg: 'damage' }[d.target.def.main] || '';
+    const grow = (meals + 1) % per === 0 ? `Feed: +1 ${stat}` : `Feed: +1 ${stat} next meal`;
+    return [e.next ? `${grow} · ${e.left - 1 <= 0 ? `evolves into <b>${ui.esc(CARDS[e.into].name)}</b>!` : `${e.left - 1} more to evolve`}` : grow, false];
   }
   if (d.kind === 'sell') return [`Sell for ${ui.ico('coin')} ${v.inst ? R.sellPrice(S, v.inst) : 0}`, false];
   if (d.kind === 'feed') {
@@ -479,6 +489,7 @@ function moveDrag(e) {
   // highlights
   for (const w of views.values()) w.glowGoal = 0;
   if (d.kind === 'card') { d.target.glowGoal = 0.95; d.target.glowColor.set(d.info.rare ? '#ffe27a' : '#fff6c8'); }
+  if (d.kind === 'eat') { d.target.glowGoal = 0.95; d.target.glowColor.set('#ffc59a'); }
   slotGlow.forEach((m, i) => { m.userData.goal = (d.kind === 'slot' && d.slot === i) ? 0.55 : (d.kind === 'bad' && d.slot === i) ? 0.25 : 0; m.material.color.set(d.kind === 'bad' ? '#e7a69c' : '#fff7c4'); });
   sellTile.hover = d.kind === 'sell' ? 1 : 0;
   shrineTile.hover = d.kind === 'feed' ? 1 : 0;
@@ -530,6 +541,7 @@ function endDrag() {
 
   const inst = card.inst;
   if (d.kind === 'card') return startCombine(card, d.target);
+  if (d.kind === 'eat') return feedEater(card, d.target);
   if (d.kind === 'sell') {
     const res = R.sell(S, inst.uid);
     if (res.ok) {
@@ -547,9 +559,11 @@ function endDrag() {
     if (!res.ok) { ui.toast(res.reason, 'bad'); sfx.deny(); bounceBack(card); refresh(); return; }
     views.delete(inst.uid);
     card.busy = true;
+    leaving.add(card);
     card.flyTo(L.shrine.x - 1.0 + TRACKS.indexOf(res.track) * 0.1, L.shrine.z, {
       dur: 0.35, arc: 0.8, done: () => {
         fx.sparkles(card.pos, { n: 8, color: '#f6efdc' });
+        leaving.delete(card);
         card.dispose(scene);
       },
     });
@@ -683,6 +697,36 @@ function buyMarket(v) {
   refresh();
 }
 
+// ------------------------------------------------------------------ eating
+
+function feedEater(food, eater) {
+  const res = R.eat(S, food.inst.uid, eater.inst.uid);
+  if (!res.ok) { bounceBack(food); return; }
+  views.delete(food.inst.uid);
+  food.busy = true;
+  leaving.add(food);
+  food.scaleGoal = 0.1;
+  food.flyTo(eater.pos.x, eater.pos.z, {
+    dur: 0.25, arc: 0.6, done: () => {
+      leaving.delete(food);
+      food.dispose(scene);
+      eater.kick(0.22);
+      eater.hop(2.2);
+      fx.puffs(eater.pos, { n: 5, s: 0.3, color: '#ffd9b8' });
+      if (res.inst.meals % (CARDS[res.inst.id].eats?.per || 1) === 0 || res.evolved) fx.number(eater.pos.clone().setY(0.4), '+1', eater.def.main || 'dmg', { icon: eater.def.main });
+      sfx.pop();
+      if (res.evolved) {
+        sfx.rare();
+        fx.sparkles(eater.pos, { n: 26, spread: 1.8 });
+        ui.banner(`${ui.esc(CARDS[res.evolved].name)}<small>evolved after ${res.inst.meals} meals</small>`);
+      }
+      refresh();
+      if (hover === eater) updateHover(lastPointer.x, lastPointer.y);
+    },
+  });
+  save();
+}
+
 // ------------------------------------------------------------------ combining
 
 function startCombine(a, b) {
@@ -742,6 +786,8 @@ let ghost = null;
 let speed = 1;
 let acc = 0;
 let result = null;
+const auraClock = [0, 0];
+let lastBreakdown = null;
 const fortFx = { 0: createFortressFx(scene, world.towers.player), 1: createFortressFx(scene, world.towers.enemy) };
 
 const towerPos = (side) => (side === 0 ? world.towers.player : world.towers.enemy).position.clone().setY(1.7);
@@ -819,7 +865,8 @@ function battleEvent(e) {
     case 'dmg': {
       const impact = () => {
         const p = towerPos(e.side);
-        if (e.amount > 0) {
+        const tick = e.kind === 'burn' || e.kind === 'poison';
+        if (e.amount > 0 && !tick) {
           fx.number(p, `-${e.amount}`, kindOf(e.kind), { big: e.crit || e.amount >= 15, icon: e.kind === 'burn' || e.kind === 'poison' ? e.kind : null });
           fx.puffs(p.clone().setY(0.8), { n: e.amount >= 10 ? 7 : 3, s: 0.3, spread: 0.9 });
         }
@@ -835,6 +882,15 @@ function battleEvent(e) {
         sfx.shoot();
         fx.projectile(unitPos(e.src), towerPos(e.side), e.pierce ? 'charge' : 'dmg', { size: e.crit ? 1.5 : 1, onHit: impact });
       } else impact();
+      break;
+    }
+    case 'tick': {
+      // Status ticks get their own big number beside the tower: burn left, poison right.
+      const p = towerPos(e.side).add(new THREE.Vector3(e.kind === 'burn' ? -1.7 : 1.7, 0.2, 0));
+      fx.number(p, `-${e.amount}`, e.kind, { big: true, icon: e.kind, still: true });
+      fx.puffs(towerPos(e.side).setY(1.2), { n: Math.min(10, 3 + Math.floor(e.amount / 4)), s: 0.28, spread: 1, color: e.kind === 'burn' ? '#ffb070' : '#b6e38a' });
+      ui.flashStatus(e.side, e.kind);
+      sfx.tick();
       break;
     }
     case 'heal':
@@ -921,8 +977,18 @@ function updateBattle(dt) {
         const t = u.timers[0];
         v.setBar(t && mode !== 'intro' ? t.prog / t.cd : null, u.frozen > 0 ? '#5aa9d6' : D.INK);
         v.frostGoal = u.frozen > 0 ? 0.55 : 0;
+        if (mode !== 'intro') v.setTally(Math.floor(u.dealt));
       });
       fortFx[side].set(B.sides[side].shield);
+      // Ambient flames / bubbles on a fortress that is burning or poisoned.
+      const St = B.sides[side];
+      auraClock[side] += dt;
+      if (auraClock[side] > 0.12) {
+        auraClock[side] = 0;
+        const tp = towerPos(side);
+        if (St.burn > 0 && Math.random() < Math.min(1, 0.25 + St.burn / 12)) fx.puffs(tp.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.6, -0.6, (Math.random() - 0.5) * 1.2)), { n: 1, s: 0.22 + Math.min(0.3, St.burn / 60), up: 2.2, spread: 0.1, color: '#ff9a4a', life: 0.7 });
+        if (St.poison > 0 && Math.random() < Math.min(1, 0.2 + St.poison / 15)) fx.puffs(tp.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.6, -0.9, (Math.random() - 0.5) * 1.2)), { n: 1, s: 0.18 + Math.min(0.25, St.poison / 60), up: 1.4, spread: 0.05, color: '#9fd05f', life: 0.9 });
+      }
     }
     ui.battleUpdate(B);
   }
@@ -931,6 +997,13 @@ function updateBattle(dt) {
 function endBattle() {
   mode = 'outro';
   const won = B.winner === 0;
+  lastBreakdown = [0, 1].map((side) => ({
+    units: B.roster[side].map((u) => ({ id: u.id, dealt: Math.round(u.dealt), summoned: u.summoned }))
+      .reduce((acc, u) => { const k = u.summoned ? `${u.id}*` : null; const prev = k && acc.find((x) => x.key === k); if (prev) { prev.dealt += u.dealt; prev.n += 1; } else acc.push({ ...u, key: k || Math.random(), n: 1 }); return acc; }, [])
+      .sort((a, b) => b.dealt - a.dealt),
+    taken: { ...B.sides[side].taken },
+    time: B.t,
+  }));
   result = R.finishFight(S, won, ghost.name);
   save();
   for (const v of bv[0]) if (v) v.setBar(null);
@@ -949,6 +1022,7 @@ function showResult() {
   const el = ui.modal(`
     <h2 class="${r.won ? 'won' : 'lost'}">${r.won ? 'Victory' : 'Defeat'}</h2>
     <p>Day ${S.history[S.history.length - 1].day} against ${ui.esc(ghost.name)}. Record <b>${S.wins}–${S.losses}</b>.</p>
+    ${ui.breakdown(lastBreakdown)}
     <div class="lines">${lines}<div class="total"><span>Gold for tomorrow</span><span>${ui.ico('coin')} +${r.total}</span></div></div>
     <div class="actions"><button class="big-btn red" data-continue>${r.over ? 'See results' : 'Continue'}</button></div>`);
   el.querySelector('[data-continue]').addEventListener('click', () => closeBattle());
@@ -958,6 +1032,7 @@ function closeBattle() {
   ui.modal(null);
   ui.hideBanner();
   ui.battleEnd();
+  for (const v of bv[0]) if (v) v.setTally(null);
   for (const v of bv[1]) if (v) { fx.puffs(v.pos, { n: 6, s: 0.35 }); v.dispose(scene); }
   for (const [i, v] of bv[0].entries()) {
     if (!v) continue;
@@ -1065,7 +1140,7 @@ function frame(now) {
   }
   updateBattle(dt);
 
-  const all = [...views.values(), ...packViews.values(), ...marketViews.filter(Boolean), ...bv[1].filter(Boolean), ...bv[0].filter((v) => v && v.summoned)];
+  const all = [...views.values(), ...leaving, ...packViews.values(), ...marketViews.filter(Boolean), ...bv[1].filter(Boolean), ...bv[0].filter((v) => v && v.summoned)];
   for (const v of all) {
     const hovered = v === hover && !drag && !v.busy;
     v.liftGoal = v.restLift + (v.dragging ? 0.75 : hovered ? 0.1 : 0) + (v.busy && combos.some((c) => c.a === v) ? 0.06 : 0);

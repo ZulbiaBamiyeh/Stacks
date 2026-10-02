@@ -313,6 +313,21 @@ button {
   font-weight: 900;
 }
 .status .ico { width: 18px; height: 18px; }
+.status small { font-size: 11.5px; opacity: 0.7; font-weight: 800; margin-left: 2px; }
+.status.s-burn { background: rgba(240, 135, 58, 0.25); }
+.status.s-poison { background: rgba(143, 191, 90, 0.25); }
+.status.rate { background: rgba(214, 92, 74, 0.35); padding-left: 8px; }
+.status.flash { animation: chipflash 0.45s ease; }
+@keyframes chipflash { 30% { transform: scale(1.18); background: rgba(255, 255, 255, 0.45); } }
+.dmg-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 10px; }
+.dmg-col h4 { margin-top: 0; }
+.dmg-row { display: grid; grid-template-columns: minmax(0, 1fr) 60px 34px; gap: 6px; align-items: center; font-size: 13.5px; padding: 2px 0; }
+.dmg-row .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; }
+.dmg-row b { text-align: right; font-variant-numeric: tabular-nums; }
+.bar-mini { height: 8px; background: rgba(42, 36, 28, 0.12); border-radius: 4px; overflow: hidden; }
+.bar-mini i { display: block; height: 100%; background: #d65c4a; border-radius: 4px; }
+.small { font-size: 12.5px; }
+@media (max-width: 520px) { .dmg-cols { grid-template-columns: 1fr; } }
 .battle-ctl {
   position: absolute;
   right: 14px;
@@ -381,7 +396,7 @@ button {
 }
 @keyframes fade { from { opacity: 0; } }
 .dialog {
-  width: min(460px, 100%);
+  width: min(520px, 100%);
   max-height: calc(100% - 20px);
   overflow: auto;
   padding: 22px 24px 20px;

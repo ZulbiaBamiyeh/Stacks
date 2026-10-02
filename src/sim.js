@@ -6,10 +6,11 @@ import { createRng } from './rng.js';
 export const DT = 0.05;
 const STATUS = ['burn', 'poison', 'sand', 'cold'];
 
-function makeUnit(id, side, slot, perm = 0, summoned = false) {
+function makeUnit(id, side, slot, perm = 0, summoned = false, extra = {}) {
   const def = CARDS[id];
   return {
     def, id, side, slot, perm, summoned,
+    meals: extra.meals || 0, owned: extra.owned || 0, fires: 0, dealt: 0,
     bonus: 0, frozen: 0, guard: 0,
     timers: def.t.map(([cd, ...acts]) => ({ cd, acts, prog: 0 })),
     onceDone: false, summons: 0, blessCount: 0, ramp: 0, shots: 0, altIdx: 0, primed: false,
@@ -29,9 +30,12 @@ export function createBattle({ left, right, seed = 1 }) {
     gold: snap.gold || 0,
     units: Array.from({ length: snap.slots }, (_, i) => {
       const c = snap.wall[i];
-      return c && CARDS[c.id]?.kind === 'unit' ? makeUnit(c.id, idx, i, c.perm || 0) : null;
+      return c && CARDS[c.id]?.kind === 'unit' ? makeUnit(c.id, idx, i, c.perm || 0, false, c) : null;
     }),
     burnClock: 0, poisonClock: 0,
+    burnSrc: new Map(), poisonSrc: new Map(),
+    taken: { dmg: 0, burn: 0, poison: 0, sudden: 0, thorns: 0 },
+    dmgLog: [],
     revived: { roc: false, ash: false },
     healLog: [],
   }));
@@ -41,6 +45,13 @@ export function createBattle({ left, right, seed = 1 }) {
   const alive = (S) => S.units.filter(Boolean);
   const ref = (u) => (u ? { side: u.side, slot: u.slot } : null);
   const sum = (S, key) => alive(S).reduce((a, u) => a + (u.def[key] || 0), 0);
+  const neighbours = (u) => {
+    const S = sides[u.side];
+    return [S.units[u.slot - 1], S.units[u.slot + 1]].filter(Boolean);
+  };
+  const owner = (u) => u.owner || u;
+  b.roster = [[], []];
+  for (const S of sides) for (const u of S.units) if (u) b.roster[S.idx].push(u);
   const has = (S, key) => alive(S).some((u) => u.def[key]);
 
   function speed(u) {
@@ -50,6 +61,7 @@ export function createBattle({ left, right, seed = 1 }) {
       haste += sum(S, 'creatureHaste');
       if (S.hp < S.maxHp * 0.5) haste += sum(S, 'lowCreatureHaste');
     }
+    for (const v of neighbours(u)) haste += v.def.auraHaste || 0;
     haste = Math.min(0.5, haste);
     const heatNet = Math.max(-0.5, Math.min(0.5, (S.heat - S.cold) * 0.02));
     return Math.max(0.1, 1 + haste + heatNet);
@@ -72,14 +84,23 @@ export function createBattle({ left, right, seed = 1 }) {
   function num(u, act, scale) {
     const S = sides[u.side];
     let n = act.n + (!act.fixed && act.k === u.def.main ? u.bonus + u.perm : 0);
+    if (!act.fixed) for (const v of neighbours(u)) if (v.def.aura && v.def.aura.k === act.k) n += v.def.aura.n;
+    if (act.ramp) n += Math.min(act.ramp, Math.max(0, u.fires - 1));
     const low = u.def.lowHp;
     if (low && low.k === act.k && S.hp < S.maxHp * low.below) n *= low.mult;
     if (scale !== 1) n = n > 0 ? Math.max(1, Math.round(n * scale)) : 0;
     return n;
   }
 
+  function credit(src, n) {
+    if (src) owner(src).dealt += n;
+  }
+
   function dealDamage(T, n, { pierce = false, src = null, crit = false, kind = 'dmg', reflect = false } = {}) {
     if (n <= 0) return;
+    if (src && src.side !== T.idx) credit(src, n);
+    T.taken[kind === 'dmg' || kind === 'thorns' || kind === 'sudden' || kind === 'burn' || kind === 'poison' ? kind : 'dmg'] += n;
+    T.dmgLog.push([b.t, n]);
     let absorbed = 0;
     if (!pierce && T.shield > 0) {
       absorbed = Math.min(T.shield, n);
@@ -119,6 +140,8 @@ export function createBattle({ left, right, seed = 1 }) {
     let n = num(u, act, scale);
     if (act.perGold) n += Math.floor(S.gold / act.perGold);
     if (act.perMissing) n += Math.floor(Math.max(0, S.maxHp - S.hp) / act.perMissing);
+    if (act.perEnemy) n += Math.floor(E[act.perEnemy[0]] / act.perEnemy[1]);
+    if (act.perOwned) n += Math.min(act.perOwned, u.owned);
     if (act.goldMult) n = S.gold * act.goldMult;
     if (act.goldFrac) n = Math.min(act.max || Infinity, Math.floor(S.gold * act.goldFrac));
     if (act.shieldFrac) n = Math.floor(S.shield * act.shieldFrac);
@@ -246,8 +269,25 @@ export function createBattle({ left, right, seed = 1 }) {
       const proxy = Object.create(v);
       proxy.slot = u.slot;
       proxy.side = u.side;
+      proxy.owner = u;
       emit({ type: 'copy', src: ref(u), target: ref(v) });
       for (const a of timer.acts) doAct(proxy, a, 1);
+    },
+    detonate(u, act) {
+      const E = sides[1 - u.side];
+      const n = E[act.kind];
+      if (n <= 0 || missed(u)) return;
+      dealDamage(E, n, { pierce: act.kind === 'poison', src: u, kind: 'dmg' });
+    },
+    convert(u, act) {
+      const E = sides[1 - u.side];
+      const take = Math.min(act.take, E.burn);
+      if (take <= 0) return;
+      E.burn -= take;
+      const give = Math.max(1, Math.round((take / act.take) * act.give));
+      E.poison += give;
+      E.poisonSrc.set(owner(u), (E.poisonSrc.get(owner(u)) || 0) + give);
+      emit({ type: 'status', side: E.idx, kind: 'poison', amount: give, src: ref(u) });
     },
     sandworm(u, act) {
       const E = sides[1 - u.side];
@@ -279,8 +319,8 @@ export function createBattle({ left, right, seed = 1 }) {
         if (act.ifShield && S.shield <= 0) return;
         if (missed(u)) return;
         let n = num(u, act, scale);
-        if (act.ramp) { n += u.ramp; u.ramp = Math.min(act.ramp, u.ramp + 1); }
         E.burn += n;
+        E.burnSrc.set(owner(u), (E.burnSrc.get(owner(u)) || 0) + n);
         emit({ type: 'status', side: E.idx, kind: 'burn', amount: n, src: ref(u) });
         return;
       }
@@ -288,9 +328,10 @@ export function createBattle({ left, right, seed = 1 }) {
         if (missed(u)) return;
         let n = num(u, act, scale);
         if (act.pct) n = Math.max(act.min || 0, Math.min(act.max || Infinity, Math.floor(E.poison * act.pct))) + u.bonus + u.perm;
-        if (act.per10) n += Math.floor(E.poison / 10) * act.per10;
+        if (act.per10) n += Math.floor(E.poison / (act.perN || 10)) * act.per10;
         n += sum(S, 'queen');
         E.poison += n;
+        E.poisonSrc.set(owner(u), (E.poisonSrc.get(owner(u)) || 0) + n);
         emit({ type: 'status', side: E.idx, kind: 'poison', amount: n, src: ref(u) });
         return;
       }
@@ -325,6 +366,7 @@ export function createBattle({ left, right, seed = 1 }) {
         if (slot < 0) return;
         u.summons += 1;
         S.units[slot] = makeUnit(act.id, S.idx, slot, 0, true);
+        b.roster[S.idx].push(S.units[slot]);
         emit({ type: 'summon', side: S.idx, slot, id: act.id, src: ref(u) });
         return;
       }
@@ -349,31 +391,51 @@ export function createBattle({ left, right, seed = 1 }) {
   function fire(u, acts) {
     const S = sides[u.side];
     u.pulse = 1;
+    u.fires += 1;
     emit({ type: 'act', src: ref(u) });
     for (const a of acts) doAct(u, a, 1);
     const right = S.units[u.slot + 1];
     if (right && right.def.mirror && !u.def.mirror) {
       const proxy = Object.create(u);
       proxy.slot = right.slot;
+      proxy.owner = right;
       right.pulse = 1;
       emit({ type: 'act', src: ref(right), mirror: true });
       for (const a of acts) doAct(proxy, a, right.def.mirror);
     }
   }
 
+  // Split tick damage between the units that applied the stacks.
+  function creditTick(S, srcMap, n) {
+    let total = 0;
+    for (const w of srcMap.values()) total += w;
+    if (total <= 0) return;
+    for (const [u, w] of srcMap) if (u.side !== S.idx) u.dealt += (n * w) / total;
+  }
+
   function tickBurn(S) {
     if (S.burn <= 0) return;
     const n = S.burn;
+    creditTick(S, S.burnSrc, n);
     dealDamage(S, n, { kind: 'burn' });
     const E = sides[1 - S.idx];
     const ifrit = alive(E).some((v) => v.def.ifrit && v.frozen <= 0);
-    if (!ifrit) S.burn -= 1;
+    // Burn halves each tick (rounded in the burner's favour), so it can't snowball.
+    if (!ifrit) {
+      const before = S.burn;
+      S.burn -= Math.max(1, Math.ceil(S.burn / 2));
+      if (S.burn <= 0) { S.burn = 0; S.burnSrc.clear(); }
+      else for (const [k, w] of S.burnSrc) S.burnSrc.set(k, (w * S.burn) / before);
+    }
+    emit({ type: 'tick', side: S.idx, kind: 'burn', amount: n, left: S.burn });
     for (const v of alive(E)) if (v.def.onEnemyBurnTick) for (const a of v.def.onEnemyBurnTick) doAct(v, a, 1);
   }
 
   function tickPoison(S) {
     if (S.poison <= 0) return;
+    creditTick(S, S.poisonSrc, S.poison);
     dealDamage(S, S.poison, { kind: 'poison', pierce: true });
+    emit({ type: 'tick', side: S.idx, kind: 'poison', amount: S.poison, left: S.poison });
   }
 
   function checkDeath(S) {
@@ -399,6 +461,16 @@ export function createBattle({ left, right, seed = 1 }) {
     const st = sum(S, 'startShield');
     if (st) gainShield(S, st, null);
     S.luck += sum(S, 'startLuck');
+    const E = sides[1 - S.idx];
+    for (const u of alive(S)) {
+      const se = u.def.startEnemy;
+      if (!se) continue;
+      const n = Math.floor(u.meals * se.perMeal);
+      if (n <= 0) continue;
+      E[se.k] += n;
+      E[se.k === 'burn' ? 'burnSrc' : 'poisonSrc'].set(u, n);
+      emit({ type: 'status', side: E.idx, kind: se.k, amount: n, src: ref(u) });
+    }
     for (const u of alive(S)) for (let i = 0; i < (u.def.startBless || 0); i++) blessOnce(u);
   }
 
@@ -429,6 +501,7 @@ export function createBattle({ left, right, seed = 1 }) {
       S.poisonClock += dt;
       if (S.poisonClock >= 2) { S.poisonClock -= 2; tickPoison(S); }
       if (S.healLog.length > 40) S.healLog.splice(0, S.healLog.length - 40);
+      if (S.dmgLog.length > 80) S.dmgLog.splice(0, S.dmgLog.length - 80);
     }
     if (b.t >= RULES.suddenDeath) {
       b.suddenClock += dt;

@@ -86,3 +86,51 @@ test('bot ghosts fill a sensible wall', () => {
     assert.ok(g.wall.filter(Boolean).length >= 2);
   }
 });
+
+test('burn halves each tick instead of snowballing', () => {
+  const b = createBattle({ left: side(['pyromancer']), right: side([], { hp: 1000 }), seed: 1 });
+  while (b.t < 2.6) b.step();
+  assert.equal(b.sides[1].burn, 6);
+  while (b.t < 3.55) b.step();
+  assert.equal(b.sides[1].burn, 3);
+});
+
+test('tick damage is credited to the units that applied it', () => {
+  const b = createBattle({ left: side(['pyromancer', 'scorpion', 'villager']), right: side([], { hp: 100000 }), seed: 1 });
+  while (b.t < 25) b.step();
+  const dealt = b.roster[0].reduce((a, u) => a + u.dealt, 0);
+  const taken = 100000 - b.sides[1].hp;
+  assert.ok(Math.abs(dealt - taken) < 1, `${dealt} vs ${taken}`);
+  assert.ok(b.roster[0][0].dealt > 0 && b.roster[0][1].dealt > 0);
+});
+
+test('neighbour auras only touch adjacent units', () => {
+  const near = createBattle({ left: side(['smith', 'villager']), right: side([], { hp: 1000 }), seed: 1 });
+  const far = createBattle({ left: side(['smith', null, 'villager']), right: side([], { hp: 1000 }), seed: 1 });
+  while (near.t < 2.01) { near.step(); far.step(); }
+  assert.equal(1000 - near.sides[1].hp, 1 + 3);
+  assert.equal(1000 - far.sides[1].hp, 1 + 2);
+});
+
+test('eaters grow and evolve, keeping their meals', () => {
+  const s = run.newRun(9);
+  const maw = run.makeInst(s, 'cinderMaw'); s.table.push(maw);
+  for (let i = 0; i < 5; i++) {
+    const e = run.makeInst(s, i % 2 ? 'wood' : 'ember'); s.table.push(e);
+    const r = run.eat(s, e.uid, maw.uid);
+    assert.ok(r.ok);
+  }
+  assert.equal(maw.id, 'cinderWyrm');
+  assert.equal(maw.meals, 5);
+  assert.equal(maw.perm, 5);
+  const stone = run.makeInst(s, 'stone'); s.table.push(stone);
+  assert.ok(!run.eat(s, stone.uid, maw.uid).ok);
+});
+
+test('track packs hold only tier-1 cards, so they cannot be sold for profit', async () => {
+  const { PACKS, CARDS } = await import('../src/content.js');
+  for (const p of Object.values(PACKS)) {
+    for (const [id] of p.pool) assert.ok(CARDS[id].tier <= 1, `${p.id} has ${id}`);
+    assert.ok(p.size <= p.price, p.id);
+  }
+});

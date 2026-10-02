@@ -34,17 +34,18 @@ export function createFx(scene) {
   }
 
   // Rising number, e.g. "-12" in a kind colour.
-  function number(pos, text, kind = 'dmg', { big = false, dx = 0, icon = null } = {}) {
+  function number(pos, text, kind = 'dmg', { big = false, dx = 0, icon = null, still = false } = {}) {
     const color = KIND_COLOR[kind] || '#fff';
     const map = getTex(`n:${text}:${color}:${icon}`, () => D.drawNumber(text, color, 96, icon));
     const aspect = map.image.width / map.image.height;
     const s = big ? 1.5 : 1.0;
-    const m = sprite(map, { x: pos.x + dx + (Math.random() - 0.5) * 0.9, y: pos.y + 0.5 + Math.random() * 0.3, z: pos.z, s, order: 30, depthTest: false });
+    const jitter = still ? 0.15 : 0.9;
+    const m = sprite(map, { x: pos.x + dx + (Math.random() - 0.5) * jitter, y: pos.y + 0.5 + Math.random() * (still ? 0 : 0.3), z: pos.z, s, order: 30, depthTest: false });
     m.scale.set(s * aspect, s, 1);
     const vx = (Math.random() - 0.5) * 0.6;
-    add(m, 1.0, (it, dt) => {
+    add(m, still ? 1.3 : 1.0, (it, dt) => {
       const u = it.age / it.life;
-      m.position.y += dt * (1.6 - u * 1.4);
+      m.position.y += dt * (still ? 0.5 : 1.6 - u * 1.4);
       m.position.x += vx * dt;
       const pop = u < 0.12 ? 0.6 + (u / 0.12) * 0.55 : 1.15 - Math.min(0.15, (u - 0.12));
       m.scale.set(s * aspect * pop, s * pop, 1);

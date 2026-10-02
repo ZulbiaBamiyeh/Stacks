@@ -2,7 +2,7 @@
 // Pure data in, data out (no DOM) so it can be saved and tested.
 import {
   CARDS, PACKS, BASE_PACKS, TRACKS, TRACK_STEPS, TRACK_RARE_CHANCE, RULES, INGREDIENTS,
-  BASE_UNITS, recipeFor, sellValue, fortressHp, wallSlots,
+  BASE_UNITS, recipeFor, sellValue, fortressHp, wallSlots, eats,
 } from './content.js';
 import { createRng, randomSeed } from './rng.js';
 
@@ -221,6 +221,33 @@ export function combine(s, aUid, bUid) {
   return { ok: true, inst, rare, info, firstTime };
 }
 
+// ---------------------------------------------------------------- eating
+
+export function eatInfo(eaterId, meals = 0) {
+  const d = CARDS[eaterId];
+  if (!d.eats) return null;
+  const ev = d.eats.evolve;
+  return { foods: d.eats.foods, next: ev ? ev[0] : null, into: ev ? ev[1] : null, left: ev ? Math.max(0, ev[0] - meals) : null };
+}
+
+export function eat(s, foodUid, eaterUid) {
+  const food = find(s, foodUid);
+  const eater = find(s, eaterUid);
+  if (!food || !eater || !eats(eater.inst.id, food.inst.id)) return { ok: false };
+  remove(s, foodUid);
+  const inst = eater.inst;
+  inst.meals = (inst.meals || 0) + 1;
+  const per = CARDS[inst.id].eats.per || 1;
+  if (inst.meals % per === 0) inst.perm += 1;
+  const ev = CARDS[inst.id].eats.evolve;
+  let evolved = null;
+  if (ev && inst.meals >= ev[0]) {
+    evolved = ev[1];
+    inst.id = ev[1];
+  }
+  return { ok: true, inst, evolved };
+}
+
 // ---------------------------------------------------------------- placement
 
 export function toWall(s, uid, slot) {
@@ -261,7 +288,7 @@ export function snapshot(s, name = 'You') {
     hp: fortressHp(s.day),
     gold: s.gold,
     slots: slotsToday(s),
-    wall: s.wall.slice(0, slotsToday(s)).map((c) => (c ? { id: c.id, perm: c.perm } : null)),
+    wall: s.wall.slice(0, slotsToday(s)).map((c) => (c ? { id: c.id, perm: c.perm, meals: c.meals || 0, owned: c.owned || 0 } : null)),
   };
 }
 

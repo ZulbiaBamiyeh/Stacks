@@ -4,7 +4,22 @@ An async PvP autobattler on a Stacklands-style tabletop, rendered with three.js.
 Buy packs, stack cards to combine them, put units on your wall, then fight a
 ghost of another player's fortress. Reach 10 wins before 3 losses.
 
-The design source of truth is [`docs/card-roster.md`](docs/card-roster.md).
+The original design doc is [`docs/card-roster.md`](docs/card-roster.md). The
+live roster (every card, recipe and pack as the code has them) is generated into
+[`docs/roster-generated.md`](docs/roster-generated.md) by `node tools/roster.mjs`.
+
+Changes from the design doc so far:
+
+- **Burn halves each tick** (rounded up) instead of losing 1 stack, so stacking
+  burn grows linearly instead of snowballing.
+- **Track packs hold only tier-1 base creatures** plus ingredients. Each base
+  (Flame Imp, Salamander, Plague Rat, Smith, ...) has its own upgrade routes.
+- **Eaters**: Cinder Maw (fire), Bog Maw (poison), Sapling (heal) and Goldbug
+  (gold) grow when you drop their food on them and evolve after 5 and 12 meals.
+- **Neighbour auras** (Smith, Torchbearer, Vineling, ...) buff the units either
+  side of them on the wall.
+- **Detonate and convert**: Pyre Keeper and Fester deal damage equal to enemy
+  burn or poison; Plague Doctor turns enemy burn into poison.
 
 ## Run it
 

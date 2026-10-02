@@ -42,8 +42,8 @@ function faceTexture(key, draw) {
   }
   return t;
 }
-export function cardTexture(id, perm = 0, summon = false) {
-  return faceTexture(`c:${id}:${perm}:${summon}`, () => D.drawCard(CARDS[id], { perm, art: art.get(id), summon }));
+export function cardTexture(id, perm = 0, summon = false, meals = 0) {
+  return faceTexture(`c:${id}:${perm}:${summon}:${meals}`, () => D.drawCard(CARDS[id], { perm, art: art.get(id), summon, meals }));
 }
 export function packTexture(packId) {
   return faceTexture(`p:${packId}`, () => D.drawPack(packId));
@@ -79,8 +79,9 @@ function makeBar() {
 let layerCounter = 1;
 
 export class CardView {
-  constructor(scene, { id = null, pack = null, inst = null, perm = 0, summon = false, faceDown = false }) {
+  constructor(scene, { id = null, pack = null, inst = null, perm = 0, summon = false, faceDown = false, meals = 0 }) {
     this.id = id;
+    this.meals = meals;
     this.pack = pack;
     this.inst = inst;
     this.perm = perm;
@@ -92,7 +93,7 @@ export class CardView {
     this.body = new THREE.Mesh(bodyGeo, bodyMat);
     this.body.castShadow = true;
     this.body.receiveShadow = true;
-    this.faceMat = new THREE.MeshLambertMaterial({ map: pack ? packTexture(pack) : cardTexture(id, perm, summon), transparent: true });
+    this.faceMat = new THREE.MeshLambertMaterial({ map: pack ? packTexture(pack) : cardTexture(id, perm, summon, meals), transparent: true });
     this.face = new THREE.Mesh(faceGeo, this.faceMat);
     this.face.position.y = CARD.t + 0.001;
     this.face.receiveShadow = true;
@@ -144,10 +145,11 @@ export class CardView {
 
   get def() { return this.id ? CARDS[this.id] : null; }
 
-  setFace(id, perm = this.perm) {
+  setFace(id, perm = this.perm, meals = this.meals) {
     this.id = id;
     this.perm = perm;
-    this.faceMat.map = cardTexture(id, perm, this.summon);
+    this.meals = meals;
+    this.faceMat.map = cardTexture(id, perm, this.summon, meals);
     this.faceMat.needsUpdate = true;
   }
 
@@ -183,6 +185,32 @@ export class CardView {
     const fill = this.bar.userData.fill;
     fill.scale.x = Math.max(0.0001, Math.min(1, p));
     if (color) fill.material.color.set(color);
+  }
+
+  // Running damage dealt during a fight, shown above the cooldown bar.
+  setTally(n) {
+    if (n == null || n <= 0) {
+      if (this.tally) this.tally.visible = false;
+      this.tallyN = null;
+      return;
+    }
+    if (n === this.tallyN) return;
+    this.tallyN = n;
+    const cv = D.drawNumber(String(n), '#fff', 64, 'dmg');
+    if (!this.tally) {
+      this.tallyMat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
+      this.tally = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.tallyMat);
+      this.tally.rotation.x = -Math.PI / 2;
+      this.tally.renderOrder = 5;
+      this.tiltGroup.add(this.tally);
+    }
+    this.tallyMat.map?.dispose();
+    this.tallyMat.map = canvasTexture(cv);
+    this.tallyMat.needsUpdate = true;
+    const h = 0.36;
+    this.tally.scale.set((h * cv.width) / cv.height, h, 1);
+    this.tally.position.set(0, CARD.t + 0.02, -CARD.h / 2 - 0.5);
+    this.tally.visible = true;
   }
 
   update(dt) {
@@ -259,6 +287,8 @@ export class CardView {
     this.faceMat.dispose();
     this.glowMat.dispose();
     this.frostMat.dispose();
+    this.tallyMat?.map?.dispose();
+    this.tallyMat?.dispose();
     this.bar.traverse((o) => o.material?.dispose?.());
   }
 }
