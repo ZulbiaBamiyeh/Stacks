@@ -1,6 +1,6 @@
 // DOM overlay: HUD chips, hover info, drag hint, toasts, banners, modals,
 // and the fortress bars during a fight.
-import { CARDS, PACKS, RECIPES, RULES, fortressHp, wallSlots } from './content.js';
+import { CARDS, PACKS, RECIPES, RULES, fortressHp, wallSlots, combineCost } from './content.js';
 import { iconURL, ROMAN, cardStats } from './gfx/draw.js';
 
 const $ = (id) => document.getElementById(id);
@@ -57,6 +57,41 @@ export function createUI() {
       : '';
     const right = price != null ? `<span class="sell">${ico('coin')} ${price}</span>` : sell != null ? `<span class="sell muted">sells ${ico('coin')} ${sell}</span>` : '';
     return `<h3>${esc(d.name)}</h3><span class="tag">${tag}</span>${right}<div class="stats">${stats}</div><p>${esc(d.text)}</p>${perm}${extra}${recipes}`;
+  }
+
+  // Right-click popover: what this card combines with. Partners you own are
+  // lit; results stay hidden until discovered.
+  function combos(id, { codex = new Set(), owned = new Set(), artURL = () => null, x = 0, y = 0 } = {}) {
+    const el = $('combos');
+    if (id == null) { el.hidden = true; return; }
+    const d = CARDS[id];
+    const thumb = (cid, cls = '') => {
+      const url = artURL(cid);
+      return url ? `<i class="cb-thumb ${cls}" style="background-image:url(${url})"></i>` : `<i class="cb-thumb icon ${cls}" style="background-image:url(${iconURL(cid)})"></i>`;
+    };
+    const uses = [...RECIPES.values()].filter((r) => r.a === id || r.b === id)
+      .map((r) => ({ r, other: r.a === id ? r.b : r.a, known: codex.has(`${r.a}+${r.b}`) }))
+      .sort((p, q) => (owned.has(q.other) - owned.has(p.other)) || (q.known - p.known) || (CARDS[p.r.result].tier - CARDS[q.r.result].tier));
+    const MAX = 8;
+    const rows = uses.slice(0, MAX).map(({ r, other, known }) => {
+      const res = known
+        ? `${thumb(r.result)}<span class="cb-name">${esc(nameOf(r.result))}</span>`
+        : `<i class="cb-thumb unknown">?</i><span class="cb-name muted">Tier ${ROMAN[CARDS[r.result].tier]}</span>`;
+      const cost = combineCost(r.result);
+      return `<div class="cb-row${owned.has(other) ? ' have' : ''}">${thumb(other)}<span class="cb-name">${esc(nameOf(other))}</span><span class="cb-arrow">→</span>${res}${cost ? `<span class="cb-cost">${ico('coin')}${cost}</span>` : '<span class="cb-cost"></span>'}${r.rare && known ? `<span class="cb-rare" title="${r.chance}% rare">★</span>` : ''}</div>`;
+    }).join('') + (uses.length > MAX ? `<div class="cb-more">+${uses.length - MAX} more combinations</div>` : '');
+    const from = [...RECIPES.values()].filter((r) => r.result === id);
+    const madeOf = from.length ? `<div class="cb-foot">Made from ${from.map((r) => `${esc(nameOf(r.a))} + ${esc(nameOf(r.b))}`).join(' or ')}</div>` : '';
+    const eats = d.eats ? `<div class="cb-foot">Eats ${d.eats.foods.map((f) => `${ico(f)}${esc(nameOf(f))}`).join(' ')}${d.eats.evolve ? ` · evolves at ${d.eats.evolve[0]}` : ''}</div>` : '';
+    const eaters = d.kind === 'ingredient' ? Object.values(CARDS).filter((c) => c.eats?.foods.includes(id)) : [];
+    const fedTo = eaters.length ? `<div class="cb-foot">Food for ${eaters.map((c) => esc(c.name)).join(', ')}</div>` : '';
+    el.innerHTML = `<div class="cb-head">${thumb(id, 'big')}<div><b>${esc(d.name)}</b><span class="muted">${uses.length ? `combines with ${uses.length}` : 'no combinations'}</span></div></div>${rows ? `<div class="cb-list">${rows}</div>` : ''}${eats}${fedTo}${madeOf}`;
+    el.hidden = false;
+    el.style.left = '0px';
+    el.style.top = '0px';
+    const r = el.getBoundingClientRect();
+    el.style.left = `${Math.min(window.innerWidth - r.width - 10, Math.max(10, x + 14))}px`;
+    el.style.top = `${Math.max(10, Math.min(window.innerHeight - r.height - 24, y - 20))}px`;
   }
 
   function packInfo(packId, { price = true } = {}) {
@@ -168,17 +203,77 @@ export function createUI() {
   }
 
   // Post-fight: who did the damage, on both sides.
-  function breakdown(bd) {
+  // End-of-round summary: a damage donut per side (normal / burn / poison),
+  // crit and miss rates, peak statuses, and a per-unit board table on demand.
+  const DMG_TYPES = [
+    ['normal', 'Normal', '#3d74b8', 'dmg'],
+    ['burn', 'Burn', '#e8892a', 'burn'],
+    ['poison', 'Poison', '#2f7d33', 'poison'],
+  ];
+  function donut(parts, total) {
+    const R = 46;
+    const C = 2 * Math.PI * R;
+    const gap = total > 0 && parts.filter((p) => p.v > 0).length > 1 ? 2.5 : 0;
+    let off = 0;
+    const segs = parts.filter((p) => p.v > 0).map((p) => {
+      const len = (p.v / total) * C;
+      const seg = `<circle r="${R}" cx="60" cy="60" fill="none" stroke="${p.color}" stroke-width="18" stroke-dasharray="${Math.max(0.01, len - gap)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 60 60)"><title>${p.label}: ${p.v} (${Math.round((p.v / total) * 100)}%)</title></circle>`;
+      off += len;
+      return seg;
+    }).join('');
+    const empty = total > 0 ? '' : `<circle r="${R}" cx="60" cy="60" fill="none" stroke="rgba(42,36,28,0.12)" stroke-width="18"/>`;
+    return `<svg class="donut" viewBox="0 0 120 120" role="img" aria-label="Damage by type">${empty}${segs}<text x="60" y="58" text-anchor="middle" class="d-num">${total}</text><text x="60" y="76" text-anchor="middle" class="d-sub">damage</text></svg>`;
+  }
+
+  function breakdown(bd, { artURL = () => null } = {}) {
     if (!bd) return '';
+    const pct = (a, b) => (b > 0 ? `${Math.round((a / b) * 100)}%` : '–');
     const col = (side, title) => {
       const d = bd[side];
-      const max = Math.max(1, ...d.units.map((u) => u.dealt));
-      const rows = d.units.map((u) => `<div class="dmg-row"><span class="nm">${esc(nameOf(u.id))}${u.n > 1 ? ` ×${u.n}` : ''}</span><span class="bar-mini"><i style="width:${(u.dealt / max) * 100}%"></i></span><b>${u.dealt}</b></div>`).join('');
       const t = bd[1 - side].taken;
-      const ticks = [['burn', t.burn], ['poison', t.poison], ['thorns', t.thorns]].filter(([, n]) => n > 0).map(([k, n]) => `${k === 'thorns' ? 'thorns' : ico(k)} ${Math.round(n)}`).join(' · ');
-      return `<div class="dmg-col"><h4>${title}</h4>${rows || '<div class="muted">No damage</div>'}${ticks ? `<div class="muted small">of which ticks: ${ticks}</div>` : ''}</div>`;
+      const vals = { normal: Math.round(t.dmg + t.thorns), burn: Math.round(t.burn), poison: Math.round(t.poison) };
+      const total = vals.normal + vals.burn + vals.poison;
+      const parts = DMG_TYPES.map(([k, label, color]) => ({ k, label, color, v: vals[k] }));
+      const legend = DMG_TYPES.map(([k, label, color, icon]) => `<div class="lg${vals[k] ? '' : ' zero'}"><i class="sw" style="background:${color}"></i>${ico(icon)}<span>${label}</span><b>${vals[k]}</b><span class="muted">${total ? pct(vals[k], total) : ''}</span></div>`).join('');
+      const healed = Math.round(d.units.reduce((a, u) => a + u.st.heal, 0));
+      const shielded = Math.round(d.units.reduce((a, u) => a + u.st.shield, 0));
+      const chips = [
+        `<span class="sc" title="${d.crits} of ${d.attacks} attacks">${ico('luck')}<b>${pct(d.crits, d.attacks)}</b> crit</span>`,
+        d.misses ? `<span class="sc" title="${d.misses} attacks missed">${ico('sand')}<b>${pct(d.misses, d.attacks + d.misses)}</b> missed</span>` : '',
+        healed ? `<span class="sc">${ico('heal')}<b>${healed}</b> healed</span>` : '',
+        shielded ? `<span class="sc">${ico('shield')}<b>${shielded}</b> shield</span>` : '',
+      ].join('');
+      const peaks = [['burn', 'burn'], ['poison', 'poison'], ['sand', 'sand'], ['luck', 'luck'], ['heat', 'heat'], ['cold', 'cold']]
+        .filter(([k]) => d.peak[k] > 0)
+        .map(([k, icon]) => `<span class="pk" title="Most ${k} on ${side ? 'them' : 'you'} this fight">${ico(icon)}${Math.round(d.peak[k])}</span>`).join('');
+      return `<div class="sum-col"><h4>${title}</h4>
+        <div class="pie-wrap">${donut(parts, total)}<div class="legend">${legend}</div></div>
+        <div class="sum-chips">${chips}</div>
+        ${peaks ? `<div class="peaks"><span class="muted">Peak on ${side ? 'them' : 'you'}</span>${peaks}</div>` : ''}</div>`;
     };
-    return `<div class="dmg-cols">${col(0, 'Your damage')}${col(1, 'Their damage')}</div><p class="muted small">Fight lasted ${bd[0].time.toFixed(1)}s. Burn and poison tick damage is credited to the units that applied it.</p>`;
+    const COLS = [
+      ['hit', 'dmg', 'Damage'], ['burn', 'burn', 'Burn'], ['poison', 'poison', 'Poison'], ['freeze', 'freeze', 'Freeze'],
+      ['heal', 'heal', 'Heal'], ['shield', 'shield', 'Shield'],
+    ];
+    const board = (side, title) => {
+      const d = bd[side];
+      const cols = COLS.filter(([k]) => d.units.some((u) => u.st[k] >= 0.5));
+      const anyCrit = d.units.some((u) => u.st.attacks > 0);
+      const fmt = (k, v) => (k === 'freeze' ? `${v.toFixed(1)}s` : Math.round(v));
+      const head = `<tr><th></th>${cols.map(([, icon, label]) => `<th title="${label}">${ico(icon)}<span>${label}</span></th>`).join('')}${anyCrit ? `<th title="Crits / attacks">${ico('luck')}<span>Crit</span></th>` : ''}</tr>`;
+      const rows = d.units.map((u) => {
+        const url = artURL(u.id);
+        const th = url ? `<i class="bt-thumb" style="background-image:url(${url})"></i>` : `<i class="bt-thumb icon" style="background-image:url(${iconURL(u.id)})"></i>`;
+        const cells = cols.map(([k]) => `<td class="${u.st[k] >= 0.5 ? '' : 'z'}">${u.st[k] >= 0.5 ? fmt(k, u.st[k]) : '·'}</td>`).join('');
+        const crit = anyCrit ? `<td class="${u.st.crits ? '' : 'z'}">${u.st.attacks ? `${u.st.crits}/${u.st.attacks}` : '·'}</td>` : '';
+        const applied = [u.st.burnApplied ? `${ico('burn')}${Math.round(u.st.burnApplied)}` : '', u.st.poisonApplied ? `${ico('poison')}${Math.round(u.st.poisonApplied)}` : ''].filter(Boolean).join(' ');
+        return `<tr><td class="nm"><div>${th}<span>${esc(nameOf(u.id))}${u.n > 1 ? ` ×${u.n}` : ''}${applied ? `<small title="Stacks applied">applied ${applied}</small>` : ''}</span></div></td>${cells}${crit}</tr>`;
+      }).join('');
+      return `<div class="bt"><h4>${title}</h4>${d.units.length ? `<table>${head}${rows}</table>` : '<div class="muted">No units</div>'}</div>`;
+    };
+    return `<div class="sum-cols">${col(0, 'You')}${col(1, esc(bd[1].name || 'Them'))}</div>
+      <div class="sum-foot"><span class="muted small">Fight lasted ${bd[0].time.toFixed(1)}s.</span><button class="link-btn" data-board>See board summary</button></div>
+      <div class="board-sum" hidden>${board(0, 'Your board')}${board(1, 'Their board')}<p class="muted small">Burn and poison damage is credited to the units that applied the stacks.</p></div>`;
   }
 
   function battleEnd() {
@@ -243,5 +338,5 @@ export function createUI() {
       <div class="actions"><button class="big-btn ghost" data-close type="button">Cancel</button><button class="big-btn red" data-confirm-new type="button">Start new game</button></div>`);
   }
 
-  return { menu, confirmNewGame, hud, cardInfo, packInfo, info, hint, toast, banner, hideBanner, modal, battleStart, battleUpdate, battleEnd, flashStatus, breakdown, setSpeed, setSound, ideas, help, ico, esc };
+  return { menu, confirmNewGame, hud, cardInfo, combos, packInfo, info, hint, toast, banner, hideBanner, modal, battleStart, battleUpdate, battleEnd, flashStatus, breakdown, setSpeed, setSound, ideas, help, ico, esc };
 }

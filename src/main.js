@@ -5,7 +5,7 @@ import * as R from './run.js';
 import { createBattle, DT } from './sim.js';
 import { fetchGhost, submitGhost } from './ghosts.js';
 import { createWorld, L, CARD, wallX, arenaX } from './gfx/world.js';
-import { CardView, loadArt, setAnisotropy } from './gfx/card.js';
+import { CardView, loadArt, setAnisotropy, artURL } from './gfx/card.js';
 import { createFx } from './gfx/fx.js';
 import { createFortressHud } from './gfx/fortress.js';
 import * as D from './gfx/draw.js';
@@ -444,7 +444,17 @@ stage.addEventListener('pointerup', (e) => {
   stage.className = '';
 });
 stage.addEventListener('pointercancel', () => { if (drag) endDrag(null); press = null; });
-stage.addEventListener('contextmenu', (e) => e.preventDefault());
+stage.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  const card = pickAt(e.clientX, e.clientY)?.card;
+  if (!card || card.pack || !CARDS[card.id]) { ui.combos(null); return; }
+  const owned = new Set([...views.values()].map((v) => v.id));
+  ui.info(null);
+  ui.combos(card.id, { codex, owned, artURL, x: e.clientX, y: e.clientY });
+});
+// Any other click or Escape closes the combine popover.
+window.addEventListener('pointerdown', (e) => { if (e.button !== 2 && !e.target.closest?.('#combos')) ui.combos(null); }, true);
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape') ui.combos(null); });
 
 stage.addEventListener('wheel', (e) => {
   e.preventDefault();
@@ -820,7 +830,6 @@ let fightToken = 0;
 let speed = 1;
 let acc = 0;
 let result = null;
-const auraClock = [0, 0];
 let lastBreakdown = null;
 // Shield now shows on the health bar, so the old tower domes are off.
 const noFx = { hit() {}, set() {}, update() {}, reset() {} };
@@ -925,7 +934,6 @@ function battleEvent(e) {
       break;
     }
     case 'tick': {
-      fx.puffs(towerPos(e.side).setY(1.2), { n: Math.min(8, 2 + Math.floor(e.amount / 5)), s: 0.26, spread: 0.9, color: e.kind === 'burn' ? '#ffb070' : '#b6e38a' });
       ui.flashStatus(e.side, e.kind);
       fortHud[e.side].tick(e.kind, e.amount);
       break;
@@ -1019,22 +1027,13 @@ function updateBattle(dt) {
         if (!v) return;
         if (!u) { v.setBar(null); return; }
         const t = u.timers[0];
-        v.setBar(t && mode !== 'intro' ? t.prog / t.cd : null, u.frozen > 0 ? '#5aa9d6' : D.INK);
+        v.setBar(t && mode === 'battle' ? t.prog / t.cd : null, u.frozen > 0 ? '#5aa9d6' : D.INK);
         v.frostGoal = u.frozen > 0 ? 0.55 : 0;
         if (mode !== 'intro') v.setTally(Math.floor(u.dealt));
         if (liveClock <= 0) v.setLive(B.liveStats(u));
       });
       fortFx[side].set(B.sides[side].shield);
       fortHud[side].set(B.sides[side]);
-      // Ambient flames / bubbles on a fortress that is burning or poisoned.
-      const St = B.sides[side];
-      auraClock[side] += dt;
-      if (auraClock[side] > 0.12) {
-        auraClock[side] = 0;
-        const tp = towerPos(side);
-        if (St.burn > 0 && Math.random() < Math.min(1, 0.25 + St.burn / 12)) fx.puffs(tp.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.6, -0.6, (Math.random() - 0.5) * 1.2)), { n: 1, s: 0.22 + Math.min(0.3, St.burn / 60), up: 2.2, spread: 0.1, color: '#ff9a4a', life: 0.7 });
-        if (St.poison > 0 && Math.random() < Math.min(1, 0.2 + St.poison / 15)) fx.puffs(tp.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.6, -0.9, (Math.random() - 0.5) * 1.2)), { n: 1, s: 0.18 + Math.min(0.25, St.poison / 60), up: 1.4, spread: 0.05, color: '#9fd05f', life: 0.9 });
-      }
     }
     ui.battleUpdate(B);
     if (liveClock <= 0) liveClock = 0.2;
@@ -1044,13 +1043,31 @@ function updateBattle(dt) {
 function endBattle() {
   mode = 'outro';
   const won = B.winner === 0;
-  lastBreakdown = [0, 1].map((side) => ({
-    units: B.roster[side].map((u) => ({ id: u.id, dealt: Math.round(u.dealt), summoned: u.summoned }))
-      .reduce((acc, u) => { const k = u.summoned ? `${u.id}*` : null; const prev = k && acc.find((x) => x.key === k); if (prev) { prev.dealt += u.dealt; prev.n += 1; } else acc.push({ ...u, key: k || Math.random(), n: 1 }); return acc; }, [])
-      .sort((a, b) => b.dealt - a.dealt),
-    taken: { ...B.sides[side].taken },
-    time: B.t,
-  }));
+  const blank = { hit: 0, burn: 0, poison: 0, burnApplied: 0, poisonApplied: 0, freeze: 0, heal: 0, shield: 0, attacks: 0, crits: 0, misses: 0 };
+  lastBreakdown = [0, 1].map((side) => {
+    const Sd = B.sides[side];
+    const units = [];
+    for (const u of B.roster[side]) {
+      const st = { ...blank, ...(u.st || {}) };
+      const prev = u.summoned && units.find((x) => x.summoned && x.id === u.id);
+      if (prev) {
+        prev.n += 1;
+        prev.dealt += Math.round(u.dealt);
+        for (const k in blank) prev.st[k] += st[k];
+      } else units.push({ id: u.id, summoned: !!u.summoned, n: 1, dealt: Math.round(u.dealt), st });
+    }
+    units.sort((a, b) => b.dealt - a.dealt);
+    return {
+      name: side ? ghost.name : 'You',
+      units,
+      taken: { ...Sd.taken },
+      time: B.t,
+      attacks: Sd.attacks,
+      crits: Sd.crits,
+      misses: Sd.misses,
+      peak: { ...Sd.peak },
+    };
+  });
   result = R.finishFight(S, won, ghost.name);
   save();
   for (const v of bv[0]) if (v) v.setBar(null);
@@ -1069,10 +1086,17 @@ function showResult() {
   const el = ui.modal(`
     <h2 class="${r.won ? 'won' : 'lost'}">${r.won ? 'Victory' : 'Defeat'}</h2>
     <p>Day ${S.history[S.history.length - 1].day} against ${ui.esc(ghost.name)}. Record <b>${S.wins}–${S.losses}</b>.</p>
-    ${ui.breakdown(lastBreakdown)}
+    ${ui.breakdown(lastBreakdown, { artURL })}
     <div class="lines">${lines}<div class="total"><span>Gold for tomorrow</span><span>${ui.ico('coin')} +${r.total}</span></div></div>
-    <div class="actions"><button class="big-btn red" data-continue>${r.over ? 'See results' : 'Continue'}</button></div>`);
+    <div class="actions"><button class="big-btn red" data-continue>${r.over ? 'See results' : 'Continue'}</button></div>`, true);
   el.querySelector('[data-continue]').addEventListener('click', () => closeBattle());
+  const toggle = el.querySelector('[data-board]');
+  toggle?.addEventListener('click', () => {
+    const box = el.querySelector('.board-sum');
+    box.hidden = !box.hidden;
+    toggle.textContent = box.hidden ? 'See board summary' : 'Hide board summary';
+    if (!box.hidden) box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
 }
 
 function closeBattle() {
@@ -1081,7 +1105,7 @@ function closeBattle() {
   ui.battleEnd();
   fortHud[0].hide();
   fortHud[1].hide();
-  for (const v of bv[0]) if (v) v.setTally(null);
+  for (const v of bv[0]) if (v) { v.setTally(null); v.setBar(null); }
   for (const v of bv[1]) if (v) { fx.puffs(v.pos, { n: 6, s: 0.35 }); v.dispose(scene); }
   for (const [i, v] of bv[0].entries()) {
     if (!v) continue;
@@ -1232,8 +1256,9 @@ function frame(now) {
   }
   fortFx[0].update(dt);
   fortFx[1].update(dt);
-  fortHud[0].update(dt);
-  fortHud[1].update(dt);
+  const simRate = B && mode === 'battle' ? speed : 0;
+  fortHud[0].update(dt, simRate);
+  fortHud[1].update(dt, simRate);
   fx.update(dt);
   world.updateCamera(dt);
   world.render();
@@ -1256,4 +1281,4 @@ if (!S.history.length && !S.table.length && S.day === 1) {
 }
 
 // Debug handle for the console.
-window.stackbrawl = { get state() { return S; }, world, R, refresh };
+window.stackbrawl = { get state() { return S; }, get battle() { return B; }, views, world, R, refresh };

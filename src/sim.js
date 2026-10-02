@@ -39,10 +39,25 @@ export function createBattle({ left, right, seed = 1 }) {
     dmgLog: [],
     revived: { roc: false, ash: false },
     healLog: [],
+    attacks: 0, crits: 0, misses: 0,
+    peak: { burn: 0, poison: 0, sand: 0, luck: 0, heat: 0, cold: 0, shield: 0 },
   }));
 
   const b = { t: 0, sides, events, over: false, winner: -1, rng, suddenK: 0, suddenClock: 0 };
-  const emit = (e) => events.push({ t: b.t, ...e });
+  // Per-unit fight stats for the end-of-round summary.
+  const blankStats = () => ({ hit: 0, burn: 0, poison: 0, burnApplied: 0, poisonApplied: 0, freeze: 0, heal: 0, shield: 0, sand: 0, luck: 0, heat: 0, cold: 0, attacks: 0, crits: 0, misses: 0 });
+  const statsOf = (u) => { const o = u.owner || u; return o.st || (o.st = blankStats()); };
+  const statsAt = (r) => { const u = r && sides[r.side].units[r.slot]; return u ? statsOf(u) : null; };
+  function track(e) {
+    const st = statsAt(e.src);
+    if (!st) return;
+    if (e.type === 'dmg' && e.src.side !== e.side && e.kind === 'dmg') st.hit += e.amount + e.absorbed;
+    else if (e.type === 'status' && st[e.kind] != null) st[e.kind === 'burn' || e.kind === 'poison' ? `${e.kind}Applied` : e.kind] += e.amount;
+    else if (e.type === 'heal') st.heal += e.amount;
+    else if (e.type === 'shield') st.shield += e.amount;
+    else if (e.type === 'freeze') st.freeze += e.dur;
+  }
+  const emit = (e) => { events.push({ t: b.t, ...e }); track(e); };
   const alive = (S) => S.units.filter(Boolean);
   const ref = (u) => (u ? { side: u.side, slot: u.slot } : null);
   const sum = (S, key) => alive(S).reduce((a, u) => a + (u.def[key] || 0), 0);
@@ -80,6 +95,8 @@ export function createBattle({ left, right, seed = 1 }) {
     const S = sides[u.side];
     const p = Math.min(RULES.sandCap, S.sand * RULES.sandMiss);
     if (p > 0 && rng.chance(p)) {
+      statsOf(u).misses += 1;
+      S.misses += 1;
       emit({ type: 'miss', src: ref(u) });
       for (const v of alive(sides[1 - u.side])) {
         if (v.def.onEnemyMiss) for (const a of v.def.onEnemyMiss) doAct(v, a, 1);
@@ -190,6 +207,10 @@ export function createBattle({ left, right, seed = 1 }) {
       else if (S.luck > 0 && rng.chance(Math.min(0.6, S.luck * RULES.luckCrit))) { crit = true; n *= u.def.critMult || 2; }
     }
     const hits = (act.hits || 1) * (act.twiceNoShield && E.shield <= 0 ? 2 : 1);
+    const st = statsOf(u);
+    st.attacks += 1;
+    S.attacks += 1;
+    if (crit) { st.crits += 1; S.crits += 1; }
     for (let i = 0; i < hits; i++) dealDamage(E, n, { pierce: !!act.pierce, src: u, crit });
     if (act.shieldGain) gainShield(S, act.shieldGain, u);
     if (act.delay) delayUnit(u, act.delay.target || 'random', act.delay.s);
@@ -521,17 +542,17 @@ export function createBattle({ left, right, seed = 1 }) {
   }
 
   // Split tick damage between the units that applied the stacks.
-  function creditTick(S, srcMap, n) {
+  function creditTick(S, srcMap, n, kind) {
     let total = 0;
     for (const w of srcMap.values()) total += w;
     if (total <= 0) return;
-    for (const [u, w] of srcMap) if (u.side !== S.idx) u.dealt += (n * w) / total;
+    for (const [u, w] of srcMap) if (u.side !== S.idx) { u.dealt += (n * w) / total; statsOf(u)[kind] += (n * w) / total; }
   }
 
   function tickBurn(S) {
     if (S.burn <= 0) return;
     const n = S.burn;
-    creditTick(S, S.burnSrc, n);
+    creditTick(S, S.burnSrc, n, 'burn');
     dealDamage(S, n, { kind: 'burn' });
     const E = sides[1 - S.idx];
     const ifrit = alive(E).some((v) => v.def.ifrit && v.frozen <= 0);
@@ -548,7 +569,7 @@ export function createBattle({ left, right, seed = 1 }) {
 
   function tickPoison(S) {
     if (S.poison <= 0) return;
-    creditTick(S, S.poisonSrc, S.poison);
+    creditTick(S, S.poisonSrc, S.poison, 'poison');
     dealDamage(S, S.poison, { kind: 'poison', pierce: true });
     emit({ type: 'tick', side: S.idx, kind: 'poison', amount: S.poison, left: S.poison });
     for (const v of alive(sides[1 - S.idx])) if (v.def.onEnemyPoisonTick) for (const a of v.def.onEnemyPoisonTick) doAct(v, { ...a, trigger: true }, 1);
@@ -640,6 +661,7 @@ export function createBattle({ left, right, seed = 1 }) {
   b.step = function step(dt = DT) {
     if (b.over) return;
     b.t += dt;
+    for (const S of sides) for (const k in S.peak) if (S[k] > S.peak[k]) S.peak[k] = S[k];
     for (const S of sides) {
       for (const u of S.units) {
         if (!u) continue;

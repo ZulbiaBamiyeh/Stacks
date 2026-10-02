@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import * as D from './draw.js';
 import { canvasTexture } from './world.js';
 import { RULES } from '../content.js';
+import { createBarFx, poisonLevel, burnLevel } from './barfx.js';
 
 const KIND = {
   hit: { color: '#fff7e6', icon: 'dmg', sign: '-' },
@@ -31,34 +32,32 @@ const PILL_X = { shield: -2.05, first: 2.05, second: 3.85 };
 
 const font = (px) => `900 ${px}px "Nunito", sans-serif`;
 
-function drawBar(st) {
-  const Wp = 1152;
-  const Hp = 150;
+// Bar geometry in canvas pixels (1152 x 150 over BAR.w x BAR.h world units).
+const BAR_PX = { w: 1152, h: 150, x: 14, y: 13, r: 28 };
+BAR_PX.iw = BAR_PX.w - BAR_PX.x * 2;
+BAR_PX.ih = BAR_PX.h - 32;
+
+// Bottom layer: frame, empty track, the HP fill and the chunk just lost.
+function drawBase(st) {
+  const { w: Wp, h: Hp, x: bx, y: by, iw: bw, ih: bh, r } = BAR_PX;
   const cv = D.canvas(Wp, Hp);
   const c = cv.getContext('2d');
-  // frame with a soft drop edge
   c.fillStyle = '#1f1b19';
   D.rrect(c, 0, 4, Wp, Hp - 4, 40);
   c.fill();
   c.fillStyle = '#2f2a26';
   D.rrect(c, 0, 0, Wp, Hp - 6, 40);
   c.fill();
-  const bx = 14;
-  const by = 13;
-  const bw = Wp - 28;
-  const bh = Hp - 32;
   c.save();
-  D.rrect(c, bx, by, bw, bh, 28);
+  D.rrect(c, bx, by, bw, bh, r);
   c.clip();
-  // empty track
   const track = c.createLinearGradient(0, by, 0, by + bh);
   track.addColorStop(0, '#2a2422');
   track.addColorStop(1, '#3e3632');
   c.fillStyle = track;
   c.fillRect(bx, by, bw, bh);
-  const p = Math.max(0, st.hp) / st.max;
+  const p = Math.max(0, st.shown) / st.max;
   const lag = Math.min(1, Math.max(p, st.lag / st.max));
-  // the chunk just lost glows then drains away
   if (lag > p) {
     c.fillStyle = st.flash > 0 ? '#fff6e0' : '#e8604a';
     c.fillRect(bx + bw * p, by, bw * (lag - p), bh);
@@ -70,62 +69,77 @@ function drawBar(st) {
   hpGrad.addColorStop(1, low ? '#c0582a' : '#3f9140');
   c.fillStyle = hpGrad;
   c.fillRect(bx, by, bw * p, bh);
-  // glossy top band
-  c.fillStyle = 'rgba(255,255,255,0.22)';
-  c.fillRect(bx, by + 6, bw * p, bh * 0.22);
   if (st.healFlash > 0) {
     c.globalAlpha = st.healFlash * 0.55;
     c.fillStyle = '#eaffdc';
     c.fillRect(bx, by, bw * p, bh);
     c.globalAlpha = 1;
   }
-  // Shield: a gold layer over the health it protects, from the left.
+  c.restore();
+  return cv;
+}
+
+// Top layer, drawn over the poison/burn effects: gloss, a see-through shield,
+// segment ticks and the HP number.
+function drawTop(st) {
+  const { w: Wp, h: Hp, x: bx, y: by, iw: bw, ih: bh, r } = BAR_PX;
+  const cv = D.canvas(Wp, Hp);
+  const c = cv.getContext('2d');
+  const p = Math.max(0, st.shown) / st.max;
+  c.save();
+  D.rrect(c, bx, by, bw, bh, r);
+  c.clip();
+  // glossy top band over the fill
+  const gloss = c.createLinearGradient(0, by, 0, by + bh * 0.45);
+  gloss.addColorStop(0, 'rgba(255,255,255,0.32)');
+  gloss.addColorStop(1, 'rgba(255,255,255,0)');
+  c.fillStyle = gloss;
+  c.fillRect(bx, by + 4, bw * p, bh * 0.45);
+  // Shield: translucent gold glass over the health it protects, from the left.
   if (st.shieldShown > 0.5) {
     const sw = bw * Math.min(1, st.shieldShown / st.max);
     const g = c.createLinearGradient(0, by, 0, by + bh);
-    g.addColorStop(0, '#ffeaa0');
-    g.addColorStop(0.5, '#f4c93e');
-    g.addColorStop(1, '#d9a21f');
+    g.addColorStop(0, 'rgba(255,240,170,0.62)');
+    g.addColorStop(0.5, 'rgba(246,206,72,0.38)');
+    g.addColorStop(1, 'rgba(222,166,34,0.5)');
     c.fillStyle = g;
     c.fillRect(bx, by, sw, bh);
     c.save();
     c.beginPath();
     c.rect(bx, by, sw, bh);
     c.clip();
-    c.strokeStyle = 'rgba(255,255,255,0.22)';
-    c.lineWidth = 10;
-    for (let x = bx - bh; x < bx + sw + bh; x += 34) {
+    c.strokeStyle = 'rgba(255,250,215,0.22)';
+    c.lineWidth = 9;
+    for (let x = bx - bh; x < bx + sw + bh; x += 36) {
       c.beginPath();
       c.moveTo(x, by + bh);
       c.lineTo(x + bh, by);
       c.stroke();
     }
     c.restore();
-    c.fillStyle = 'rgba(255,255,255,0.45)';
-    c.fillRect(bx, by + 6, sw, bh * 0.14);
-    c.fillStyle = '#fff5c8';
+    c.strokeStyle = 'rgba(255,236,150,0.95)';
+    c.lineWidth = 6;
+    c.strokeRect(bx + 3, by + 3, sw - 6, bh - 6);
+    c.fillStyle = '#fff6cc';
     c.fillRect(bx + sw - 5, by, 5, bh);
     if (st.shieldFlash > 0) {
-      c.globalAlpha = st.shieldFlash * 0.6;
-      c.fillStyle = '#fff';
+      c.globalAlpha = st.shieldFlash * 0.5;
+      c.fillStyle = '#fffbe8';
       c.fillRect(bx, by, sw, bh);
       c.globalAlpha = 1;
     }
   }
-  // segment ticks every 50 HP
   c.fillStyle = 'rgba(0,0,0,0.22)';
   for (let v = 50; v < st.max; v += 50) c.fillRect(bx + (bw * v) / st.max - 2, by + bh * 0.6, 4, bh * 0.4);
-  // inner shadow
   const sh = c.createLinearGradient(0, by, 0, by + bh);
-  sh.addColorStop(0, 'rgba(0,0,0,0.18)');
+  sh.addColorStop(0, 'rgba(0,0,0,0.2)');
   sh.addColorStop(0.15, 'rgba(0,0,0,0)');
   sh.addColorStop(0.85, 'rgba(0,0,0,0)');
-  sh.addColorStop(1, 'rgba(0,0,0,0.25)');
+  sh.addColorStop(1, 'rgba(0,0,0,0.28)');
   c.fillStyle = sh;
   c.fillRect(bx, by, bw, bh);
   c.restore();
-  // big HP number centred
-  const hpText = `${Math.max(0, Math.ceil(st.hp))}`;
+  const hpText = `${Math.max(0, Math.ceil(st.shown))}`;
   c.textAlign = 'center';
   c.textBaseline = 'middle';
   c.font = font(84);
@@ -242,11 +256,22 @@ export function createFortressHud(scene, { x, z }) {
   const g = new THREE.Group();
   g.position.set(x, 0.06, z);
   scene.add(g);
-  const barMat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
-  const bar = new THREE.Mesh(new THREE.PlaneGeometry(BAR.w, BAR.h), barMat);
-  bar.rotation.x = -Math.PI / 2;
-  bar.renderOrder = 6;
+  // The bar is three layers: base fill, poison/burn shader, then shield and number.
+  const bar = new THREE.Group();
   g.add(bar);
+  const layer = (order) => {
+    const mat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(BAR.w, BAR.h), mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.renderOrder = order;
+    bar.add(mesh);
+    return mat;
+  };
+  const baseMat = layer(6);
+  const fx = createBarFx(BAR, z < 0 ? 3.7 : 0);
+  fx.mesh.renderOrder = 6.3;
+  bar.add(fx.mesh);
+  const topMat = layer(6.6);
   const buffMat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
   const buffs = new THREE.Mesh(new THREE.PlaneGeometry(BAR.w, BAR.w * (84 / 1152)), buffMat);
   buffs.rotation.x = -Math.PI / 2;
@@ -258,7 +283,14 @@ export function createFortressHud(scene, { x, z }) {
   const top = z < 0;
   const lift = top ? { y: 1.4, z: -0.7, py: 1.1, pz: -0.85 } : { y: 0.5, z: 1.15, py: 0.45, pz: 1.0 };
 
-  const st = { hp: 0, max: 1, lag: 0, shield: 0, shieldShown: 0, flash: 0, healFlash: 0, shieldFlash: 0 };
+  const st = { hp: 0, shown: 0, max: 1, lag: 0, shield: 0, shieldShown: 0, flash: 0, healFlash: 0, shieldFlash: 0, poison: 0, burn: 0 };
+  // Burn and poison damage drains out of the bar continuously: each tick's
+  // damage is spread over the time until the next tick, so the overall rate
+  // is unchanged but the bar flows down instead of stepping.
+  const drain = { burn: 0, poison: 0 };
+  const drainRate = { burn: 0, poison: 0 };
+  const TICK = { burn: RULES.burnTick, poison: RULES.poisonTick };
+  let shownText = null;
   let dirty = true;
   let redraw = 0;
   let kick = 0;
@@ -305,7 +337,10 @@ export function createFortressHud(scene, { x, z }) {
     // Where projectiles should land: the middle of the bar.
     target: () => new THREE.Vector3(x, 0.6, z),
     reset(maxHp) {
-      Object.assign(st, { hp: maxHp, max: maxHp, lag: maxHp, shield: 0, shieldShown: 0, flash: 0, healFlash: 0, shieldFlash: 0 });
+      Object.assign(st, { hp: maxHp, shown: maxHp, max: maxHp, lag: maxHp, shield: 0, shieldShown: 0, flash: 0, healFlash: 0, shieldFlash: 0, poison: 0, burn: 0 });
+      drain.burn = drain.poison = drainRate.burn = drainRate.poison = 0;
+      shownText = null;
+      fx.reset();
       clearSprites();
       for (const P of Object.values(pills)) Object.assign(P, { value: 0, disp: 0, shown: null, flash: 0, pop: 0, pulse: 0, shake: 0, s: 0 });
       dirty = true;
@@ -339,9 +374,9 @@ export function createFortressHud(scene, { x, z }) {
         return;
       }
       if (kind === 'burn' || kind === 'poison') {
-        // Tick damage is shown off the pill by tick(); just shake the bar.
-        st.flash = 0.18;
-        kick = Math.min(1, kick + 0.12);
+        // Spread this tick's damage over the time until the next one.
+        drain[kind] += n;
+        drainRate[kind] = drain[kind] / TICK[kind];
         return;
       }
       const K = KIND[kind];
@@ -376,17 +411,28 @@ export function createFortressHud(scene, { x, z }) {
       }
       st.hp = S.hp;
       st.shield = S.shield;
+      st.poison = S.poison;
+      st.burn = S.burn;
       for (const k of ['shield', 'burn', 'poison']) {
         const P = pills[k];
         if (S[k] > P.value && P.value > 0 && k !== 'shield') P.pop = Math.max(P.pop, 0.7);
         P.value = S[k];
       }
     },
-    update(dt) {
-      if (st.lag > st.hp) {
-        st.lag = Math.max(st.hp, st.lag - Math.max(8, (st.lag - st.hp) * 2.2) * dt);
+    // simRate: how fast the fight clock runs (0 once the fight is over).
+    update(dt, simRate = 1) {
+      for (const k of ['burn', 'poison']) {
+        if (drain[k] <= 0) continue;
+        const dec = simRate > 0 ? drainRate[k] * dt * simRate : Math.max(drain[k] * dt * 6, 30 * dt);
+        drain[k] = Math.max(0, drain[k] - dec);
+      }
+      const shown = Math.min(st.max, st.hp + drain.burn + drain.poison);
+      if (shown !== st.shown) { st.shown = shown; dirty = true; }
+      if (st.lag > st.shown) {
+        st.lag = Math.max(st.shown, st.lag - Math.max(8, (st.lag - st.shown) * 2.2) * dt);
         dirty = true;
-      } else st.lag = st.hp;
+      } else st.lag = st.shown;
+      fx.update(dt, Math.max(0, st.shown) / st.max, poisonLevel(st.poison), burnLevel(st.burn));
       if (st.flash > 0) { st.flash -= dt; dirty = true; }
       if (st.healFlash > 0) { st.healFlash = Math.max(0, st.healFlash - dt * 1.5); dirty = true; }
       if (st.shieldFlash > 0) { st.shieldFlash = Math.max(0, st.shieldFlash - dt * 3); dirty = true; }
@@ -439,15 +485,22 @@ export function createFortressHud(scene, { x, z }) {
 
       redraw -= dt;
       if (dirty && redraw <= 0) {
-        barMat.map?.dispose();
-        barMat.map = canvasTexture(drawBar(st));
-        barMat.needsUpdate = true;
+        baseMat.map?.dispose();
+        baseMat.map = canvasTexture(drawBase(st));
+        baseMat.needsUpdate = true;
+        const text = `${Math.ceil(st.shown)}|${st.shieldShown.toFixed(1)}|${st.shieldFlash > 0 ? st.shieldFlash.toFixed(2) : 0}`;
+        if (text !== shownText) {
+          shownText = text;
+          topMat.map?.dispose();
+          topMat.map = canvasTexture(drawTop(st));
+          topMat.needsUpdate = true;
+        }
         dirty = false;
         redraw = 0.033;
       }
       kick = Math.max(0, kick - dt * 3);
       const s = 1 + kick * 0.03;
-      bar.scale.set(s, s, 1);
+      bar.scale.set(s, 1, s);
       bar.position.x = kick > 0.05 ? (Math.random() - 0.5) * kick * 0.1 : 0;
 
       // running totals above the bar: pop on each add, drift away when quiet

@@ -14,6 +14,8 @@ const bodyMat = new THREE.MeshLambertMaterial({ color: D.INK });
 // ------------------------------------------------------------------ art + textures
 
 const art = new Map();
+// URL of a card's art (for DOM thumbnails), or null.
+export const artURL = (id) => art.get(id)?.src || null;
 export async function loadArt() {
   let manifest = {};
   try {
