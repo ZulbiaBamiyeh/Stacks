@@ -74,3 +74,11 @@ Cards without art fall back to placeholder doodles.
 
 Runs are saved in `localStorage`, along with discovered recipes and the ghost
 pool (your own past walls, which later runs can face).
+
+## Unit battle prototype (this branch)
+
+`proto.html` tests a Footman Frenzy style fight: spawner cards on each wall send
+3D units (villagers, warriors, archers) across a field to fight and hit the
+enemy castle. Sim in `src/proto/lanes.js` (deterministic), procedural models in
+`src/proto/models.js`. Warriors beat villagers, archers beat warriors (arrows
+ignore armour), villager swarms beat archers. From 60s both castles crumble.

@@ -362,7 +362,7 @@ export function createWorld(container) {
   return {
     THREE, renderer, scene, camera, view, anisotropy, arena,
     towers: { home: homeTower, player: arenaPlayerTower, enemy: arenaEnemyTower },
-    frame, resize, updateCamera, pointerRay, groundPoint, toScreen, makeTile, makeDecal, outlined,
+    frame, resize, updateCamera, pointerRay, groundPoint, toScreen, makeTile, makeDecal, outlined, makeBoard, makeTower,
     render: () => renderer.render(scene, camera),
   };
 }
