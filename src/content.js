@@ -561,6 +561,9 @@ export const RULES = {
   suddenTick: 1.5,
   freezeGuard: 1.5,
   startGold: 10,
+  // after each fight: +1 gold per interestPer held, up to interestMax
+  interestPer: 10,
+  interestMax: 3,
   dayGold: 5,
   winGold: 2,
   winsToFinish: 10,

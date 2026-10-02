@@ -407,10 +407,13 @@ export function finishFight(s, won, opponentName) {
   }
 
   lines.push(['Daily wage', RULES.dayGold]);
+  // Interest on what you're holding: +1 per 10 gold, up to +3.
+  const interest = Math.min(RULES.interestMax, Math.floor(s.gold / RULES.interestPer));
+  if (interest) lines.push(['Interest', interest]);
   if (tk.gold) lines.push(['Trinkets', tk.gold]);
   if (tk.interest) {
     const g = Math.min(tk.interest, Math.floor(s.gold / 5));
-    if (g) lines.push(['Interest', g]);
+    if (g) lines.push(['Interest Ledger', g]);
   }
   if (won) lines.push(['Victory bonus', RULES.winGold]);
   for (const c of owned(s)) {

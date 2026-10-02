@@ -377,7 +377,7 @@ export function createUI() {
     return modal(`
       <h2>How to play</h2>
       <ul class="tight">
-        <li><b>Packs</b> cost gold; click one on the table to open it.</li>
+        <li><b>Packs</b> cost gold; click one on the table to open it. Saving earns interest: +1 per 10 gold held, up to +3.</li>
         <li><b>Combine</b> by dragging a card onto another.</li>
         <li><b>Wall</b> units fight. Press <b>Fight!</b> when ready.</li>
         <li>Stack the same resource and drop it on the <b>rack</b> for a trinket. Feed the <b>shrine</b> to open a themed track.</li>

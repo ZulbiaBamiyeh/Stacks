@@ -89,3 +89,12 @@ test('opening a track binds the shrine and seals the others', () => {
   assert.ok(feed('ice').ok);
   assert.ok(run.availablePacks(s).includes('frost'));
 });
+
+test('holding gold earns interest, +1 per 10 up to +3', () => {
+  for (const [held, want] of [[9, 0], [10, 1], [27, 2], [80, 3]]) {
+    const s = run.newRun(3);
+    s.gold = held;
+    const r = run.finishFight(s, false, 'x');
+    assert.equal(r.lines.find(([l]) => l === 'Interest')?.[1] || 0, want, `holding ${held}`);
+  }
+});
