@@ -78,7 +78,7 @@ export function createBattle({ left, right, seed = 1 }) {
 
   function missed(u) {
     const S = sides[u.side];
-    const p = Math.min(0.45, S.sand * 0.03);
+    const p = Math.min(RULES.sandCap, S.sand * RULES.sandMiss);
     if (p > 0 && rng.chance(p)) {
       emit({ type: 'miss', src: ref(u) });
       for (const v of alive(sides[1 - u.side])) {
@@ -97,12 +97,12 @@ export function createBattle({ left, right, seed = 1 }) {
     if (act.k === u.def.main) n += u.bonus + u.perm + u.selfBonus;
     for (const v of neighbours(u)) if (v.def.aura && v.def.aura.k === act.k) n += v.def.aura.n;
     if (act.ramp) n += Math.min(act.ramp, Math.max(0, u.fires - 1)) * (act.rampStep || 1);
-    if (act.perEnemy) n += Math.floor(E[act.perEnemy[0]] / act.perEnemy[1]);
+    if (act.perEnemy) n += Math.min(act.perEnemy[2] ?? Infinity, Math.floor(E[act.perEnemy[0]] / act.perEnemy[1]));
     if (act.ifEnemy && E[act.ifEnemy[0]] > 0) n += act.ifEnemy[1];
     if (act.perShield) n += Math.floor(S.shield / act.perShield);
     if (act.perMissing) n += Math.floor(Math.max(0, S.maxHp - S.hp) / act.perMissing);
     if (act.perDay) n += Math.floor(S.day * act.perDay);
-    if (act.perAlly) n += alive(S).filter((v) => v !== u && matches(v, act.perAlly)).length * act.perAlly.n;
+    if (act.perAlly) n += Math.min(act.perAlly.max ?? Infinity, alive(S).filter((v) => v !== u && matches(v, act.perAlly)).length) * act.perAlly.n;
     if (act.perFrozen) n += alive(E).filter((v) => v.frozen > 0).length * act.perFrozen;
     if (act.nth && u.fires % act.nth === 0) n *= act.nthMult;
     if (act.firstMult && u.fires === 1) n *= act.firstMult;
@@ -186,7 +186,7 @@ export function createBattle({ left, right, seed = 1 }) {
     let crit = false;
     if (!act.trigger) {
       if (u.primed) { crit = true; u.primed = false; n *= 3; }
-      else if (S.luck > 0 && rng.chance(Math.min(0.6, S.luck * 0.02))) { crit = true; n *= u.def.critMult || 2; }
+      else if (S.luck > 0 && rng.chance(Math.min(0.6, S.luck * RULES.luckCrit))) { crit = true; n *= u.def.critMult || 2; }
     }
     const hits = (act.hits || 1) * (act.twiceNoShield && E.shield <= 0 ? 2 : 1);
     for (let i = 0; i < hits; i++) dealDamage(E, n, { pierce: !!act.pierce, src: u, crit });
@@ -346,7 +346,7 @@ export function createBattle({ left, right, seed = 1 }) {
     pack(u, act) {
       const S = sides[u.side];
       const count = Math.min(act.max, alive(S).filter((v) => v.def.kin === 'wolf').length);
-      for (let i = 0; i < count; i++) attack(u, { k: 'dmg', n: act.n }, 1);
+      for (let i = 0; i < count; i++) attack(u, { k: 'dmg', n: act.n + (i === 0 ? u.bonus + u.perm : 0), fixed: true }, 1);
     },
     pay(u, act) {
       const S = sides[u.side];
@@ -392,9 +392,9 @@ export function createBattle({ left, right, seed = 1 }) {
     },
     sandworm(u, act) {
       const E = sides[1 - u.side];
-      const stacks = E.sand;
+      const stacks = Math.min(E.sand, act.max || Infinity);
       if (stacks <= 0) return;
-      E.sand = 0;
+      E.sand -= stacks;
       attack(u, { k: 'dmg', n: stacks * act.per, pierce: true, fixed: true }, 1);
     },
   };
@@ -537,7 +537,7 @@ export function createBattle({ left, right, seed = 1 }) {
     // Burn halves each tick (rounded in the burner's favour), so it can't snowball.
     if (!ifrit) {
       const before = S.burn;
-      S.burn -= Math.max(1, Math.ceil(S.burn / 2));
+      S.burn -= Math.max(1, Math.ceil(S.burn / RULES.burnDecay));
       if (S.burn <= 0) { S.burn = 0; S.burnSrc.clear(); }
       else for (const [k, w] of S.burnSrc) S.burnSrc.set(k, (w * S.burn) / before);
     }
@@ -557,7 +557,7 @@ export function createBattle({ left, right, seed = 1 }) {
     if (S.hp > 0) return false;
     if (!S.revived.roc && has(S, 'revive')) {
       S.revived.roc = true;
-      S.hp = Math.ceil(S.maxHp * 0.25);
+      S.hp = Math.ceil(S.maxHp * (alive(S).find((v) => v.def.revive)?.def.revive || 0.25));
       emit({ type: 'revive', side: S.idx, by: 'roc' });
       return false;
     }

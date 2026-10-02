@@ -94,9 +94,9 @@ test('bot ghosts fill a sensible wall', () => {
 test('burn halves each tick instead of snowballing', () => {
   const b = createBattle({ left: side(['pyromancer']), right: side([], { hp: 1000 }), seed: 1 });
   while (b.t < 3.76) b.step();
-  assert.equal(b.sides[1].burn, 3);
+  assert.equal(b.sides[1].burn, 4);
   while (b.t < 4.55) b.step();
-  assert.equal(b.sides[1].burn, 1);
+  assert.equal(b.sides[1].burn, 2);
 });
 
 test('tick damage is credited to the units that applied it', () => {
@@ -158,4 +158,14 @@ test('heals no longer cleanse burn or poison', () => {
   const b = createBattle({ left: side(['scorpion']), right: side(['healer'], { hp: 1000 }), seed: 1 });
   while (b.t < 4.6) b.step();
   assert.equal(b.sides[1].poison, 1);
+});
+
+test('archetypes stay within a healthy band mid and late', async () => {
+  const { run } = await import('../tools/balance.mjs');
+  const res = run(16, { quiet: true, stages: ['mid', 'late'] });
+  for (const [stage, m] of Object.entries(res)) {
+    for (const [name, row] of Object.entries(m)) {
+      assert.ok(row.avg > 0.2 && row.avg < 0.8, `${stage} ${name} averages ${Math.round(row.avg * 100)}%`);
+    }
+  }
 });

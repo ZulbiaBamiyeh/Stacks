@@ -72,6 +72,8 @@ Cards without art fall back to placeholder doodles.
 | `vendor/three/` | three.js r186, loaded through an import map |
 | `test/` | Node tests for the sim and run rules |
 
+Balance notes and archetype win rates: [`docs/balance.md`](docs/balance.md).
+
 Runs are saved in `localStorage`, along with discovered recipes and the ghost
 pool (your own past walls, which later runs can face).
 
