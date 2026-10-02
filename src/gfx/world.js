@@ -14,13 +14,16 @@ export const L = {
   packStep: 1.45,
   shrine: { x: 6.95, z: -4.8, w: 3.0, h: 1.9 },
   market: { xs: [6.2, 7.7], zs: [-2.55, -0.55, 1.45], w: 1.38, h: 1.9, reroll: { x: 6.95, z: 3.15, w: 3.0, h: 1.0 } },
-  table: { x0: -8.9, x1: 5.25, z0: -3.75, z1: 3.05 },
+  table: { x0: -8.9, x1: 5.25, z0: -1.55, z1: 3.05 },
+  // trinket rack: five card slots on a velvet shelf under the pack row
+  rack: { z: -2.72, x0: -3.45, step: 1.45, n: 5, band: { x0: -4.35, x1: 3.25, z0: -3.72, z1: -1.72 } },
   wall: { z: 4.6, x0: -4.3, step: 1.5, band: { x0: -5.4, x1: 4.3, z0: 3.45, z1: 5.8 } },
   tower: { x: -7.4, z: 4.35 },
   arena: { cz: -20, z0: -26.15, z1: -13.85, enemyZ: -22.45, playerZ: -17.55, enemyTowerZ: -24.55, playerTowerZ: -15.35, x0: -3.75 },
 };
 export const wallX = (i) => L.wall.x0 + i * L.wall.step;
 export const arenaX = (i) => L.arena.x0 + i * L.wall.step;
+export const rackX = (i) => L.rack.x0 + i * L.rack.step;
 
 const tex = (cv, { repeat = null, aniso = 8 } = {}) => {
   const t = new THREE.CanvasTexture(cv);
@@ -225,6 +228,20 @@ export function createWorld(container) {
   const link = outlined(new THREE.BoxGeometry(band.x0 - L.tower.x - 0.7, 0.45, 0.6), '#d8d0bb', 1.04);
   link.position.set((band.x0 + L.tower.x + 0.7) / 2 - 0.05, 0.22, L.tower.z);
   scene.add(link);
+
+  // Trinket rack
+  {
+    const rb = L.rack.band;
+    const rw = rb.x1 - rb.x0;
+    const rd = rb.z1 - rb.z0;
+    const k = 100;
+    const cvr = D.drawRackBand(Math.round(rw * k), Math.round(rd * k), L.rack.n, (CARD.w + 0.14) * k, (CARD.h + 0.14) * k, L.rack.step * k, (L.rack.x0 - rb.x0) * k);
+    const rack = new THREE.Mesh(new THREE.PlaneGeometry(rw, rd), new THREE.MeshLambertMaterial({ map: tex(cvr, { aniso: anisotropy }), alphaTest: 0.5 }));
+    rack.rotation.x = -Math.PI / 2;
+    rack.position.set((rb.x0 + rb.x1) / 2, 0.002, (rb.z0 + rb.z1) / 2);
+    rack.receiveShadow = true;
+    scene.add(rack);
+  }
 
   // Arena wall bands
   for (const [z, flip] of [[A.playerZ, 1], [A.enemyZ, -1]]) {

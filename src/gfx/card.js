@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import * as D from './draw.js';
 import { CARD, faceGeometry, slabGeometry, canvasTexture } from './world.js';
 import { CARDS } from '../content.js';
+import { TRINKETS } from '../trinkets.js';
 
 const bodyGeo = slabGeometry(CARD.w, CARD.h, CARD.r, CARD.t);
 const faceGeo = faceGeometry(CARD.w, CARD.h, CARD.r);
@@ -20,7 +21,7 @@ export const artURL = (id) => art.get(id)?.src || null;
 const faceURLs = new Map();
 export function cardImageURL(id, { perm = 0, meals = 0 } = {}) {
   const key = `${id}:${perm}:${meals}`;
-  if (!faceURLs.has(key)) faceURLs.set(key, D.drawCard(CARDS[id], { perm, meals, art: art.get(id) }).toDataURL('image/png'));
+  if (!faceURLs.has(key)) faceURLs.set(key, (TRINKETS[id] ? D.drawTrinket(TRINKETS[id], { art: art.get(id) }) : D.drawCard(CARDS[id], { perm, meals, art: art.get(id) })).toDataURL('image/png'));
   return faceURLs.get(key);
 }
 export async function loadArt() {
@@ -30,7 +31,7 @@ export async function loadArt() {
     if (res.ok) manifest = await res.json();
   } catch { /* no manifest: placeholders everywhere */ }
   await Promise.all(Object.entries(manifest).map(([id, file]) => new Promise((resolve) => {
-    if (!CARDS[id]) return resolve();
+    if (!CARDS[id] && !TRINKETS[id]) return resolve();
     const img = new Image();
     img.onload = () => { art.set(id, img); resolve(); };
     img.onerror = () => resolve();
@@ -51,9 +52,10 @@ function faceTexture(key, draw) {
   }
   return t;
 }
-export function cardTexture(id, perm = 0, summon = false, meals = 0, live = null) {
+export function cardTexture(id, perm = 0, summon = false, meals = 0, live = null, stack = 1) {
+  if (TRINKETS[id]) return faceTexture(`t:${id}`, () => D.drawTrinket(TRINKETS[id], { art: art.get(id) }));
   const lk = live ? Object.entries(live).map(([k, v]) => `${k}${v}`).join(',') : '';
-  return faceTexture(`c:${id}:${perm}:${summon}:${meals}:${lk}`, () => D.drawCard(CARDS[id], { perm, art: art.get(id), summon, meals, live }));
+  return faceTexture(`c:${id}:${perm}:${summon}:${meals}:${lk}:${stack}`, () => D.drawCard(CARDS[id], { perm, art: art.get(id), summon, meals, live, stack }));
 }
 export function packTexture(packId) {
   return faceTexture(`p:${packId}`, () => D.drawPack(packId));
@@ -153,13 +155,35 @@ export class CardView {
     scene.add(this.root);
   }
 
-  get def() { return this.id ? CARDS[this.id] : null; }
+  get def() { return this.id ? CARDS[this.id] || TRINKETS[this.id] : null; }
+
+  // Bundles: the card shows a count and sits on a little pile of copies.
+  setStack(n) {
+    n = n || 1;
+    if (n === (this.stack || 1)) return;
+    this.stack = n;
+    this.faceMat.map = cardTexture(this.id, this.perm, this.summon, this.meals, this.live, n);
+    this.faceMat.needsUpdate = true;
+    if (this.pile) this.tiltGroup.remove(this.pile);
+    this.pile = new THREE.Group();
+    for (let i = 1; i < n; i++) {
+      const b = new THREE.Mesh(bodyGeo, bodyMat);
+      const f = new THREE.Mesh(faceGeo, this.faceMat);
+      f.position.y = CARD.t + 0.001;
+      const layer = new THREE.Group();
+      layer.add(b, f);
+      layer.position.set(0, -i * 0.012, -i * 0.13);
+      this.pile.add(layer);
+    }
+    this.tiltGroup.add(this.pile);
+    this.kick(0.08);
+  }
 
   setFace(id, perm = this.perm, meals = this.meals) {
     this.id = id;
     this.perm = perm;
     this.meals = meals;
-    this.faceMat.map = cardTexture(id, perm, this.summon, meals, this.live);
+    this.faceMat.map = cardTexture(id, perm, this.summon, meals, this.live, this.stack || 1);
     this.faceMat.needsUpdate = true;
   }
 
@@ -192,7 +216,7 @@ export class CardView {
     const grew = live && this.live && Object.keys(live).some((k) => live[k] > (this.live[k] ?? live[k]));
     this.liveKey = key;
     this.live = live;
-    this.faceMat.map = cardTexture(this.id, this.perm, this.summon, this.meals, live);
+    this.faceMat.map = cardTexture(this.id, this.perm, this.summon, this.meals, live, this.stack || 1);
     this.faceMat.needsUpdate = true;
     if (grew) this.kick(0.06);
   }

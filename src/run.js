@@ -5,6 +5,7 @@ import {
   BASE_UNITS, recipeFor, sellValue, fortressHp, wallSlots, eats, combineCost,
 } from './content.js';
 import { createRng, randomSeed } from './rng.js';
+import { TRINKETS, TK_BY, RACK_SLOTS, MAX_STACK, FORGE_COST, aggregate, trinketSellValue } from './trinkets.js';
 
 // Bump when rules change enough that old saves would be unplayable.
 export const SAVE_VERSION = 2;
@@ -21,6 +22,7 @@ export function newRun(seed = randomSeed()) {
     uid: 1,
     table: [],
     wall: Array(6).fill(null),
+    trinkets: Array(RACK_SLOTS).fill(null),
     packs: [],
     shop: [],
     fed: Object.fromEntries(TRACKS.map((t) => [t.id, 0])),
@@ -149,8 +151,12 @@ export function openOne(s, packUid) {
   return { ok: true, inst, empty: !p.cards.length };
 }
 
+// Modifiers from the trinkets on the rack.
+export const trinketMods = (s) => aggregate((s.trinkets || []).filter(Boolean).map((t) => t.id));
+export const stackOf = (inst) => inst.stack || 1;
+
 export function sellPrice(s, inst) {
-  return sellValue(CARDS[inst.id], inst, ownedCount(s, 'sellBonus') - (CARDS[inst.id].sellBonus ? 1 : 0));
+  return sellValue(CARDS[inst.id], inst, ownedCount(s, 'sellBonus') - (CARDS[inst.id].sellBonus ? 1 : 0)) * stackOf(inst) + (trinketMods(s).sellBonus || 0);
 }
 
 export function sell(s, uid) {
@@ -172,16 +178,18 @@ export function feed(s, uid) {
   const track = feedTrack(f.inst.id);
   if (!track) return { ok: false, reason: 'The shrine only takes Ember, Bone, Berry, Coin or Stone' };
   remove(s, uid);
-  s.fed[track.id] += 1;
+  s.fed[track.id] += stackOf(f.inst);
   const n = s.fed[track.id];
-  const unlocked = n === TRACK_STEPS[0] ? track.packs[0] : n === TRACK_STEPS[1] ? track.packs[1] : null;
+  const before = n - stackOf(f.inst);
+  const crossed = (step) => before < step && n >= step;
+  const unlocked = crossed(TRACK_STEPS[1]) ? track.packs[1] : crossed(TRACK_STEPS[0]) ? track.packs[0] : null;
   return { ok: true, track, count: n, unlocked };
 }
 
 // ---------------------------------------------------------------- combining
 
 export function rareBonus(s) {
-  let bonus = ownedSum(s, 'rareOdds');
+  let bonus = ownedSum(s, 'rareOdds') + (trinketMods(s).rareOdds || 0);
   if (!s.oracleUsed && ownedCount(s, 'oracle')) bonus += 20;
   return bonus;
 }
@@ -190,13 +198,14 @@ export function combineInfo(s, aId, bId) {
   const r = recipeFor(aId, bId);
   if (!r) return null;
   const chance = r.rare ? Math.min(RULES.rareCap, r.chance + rareBonus(s)) : 0;
-  return { ...r, chance, cost: combineCost(r.result) };
+  return { ...r, chance, cost: Math.max(0, combineCost(r.result) - (trinketMods(s).combineDiscount || 0)) };
 }
 
 export function combine(s, aUid, bUid, { prepaid = false } = {}) {
   const a = find(s, aUid);
   const b = find(s, bUid);
   if (!a || !b || a === b) return { ok: false };
+  if (stackOf(a.inst) > 1 || stackOf(b.inst) > 1) return { ok: false, reason: 'Bundles only go to the trinket rack' };
   const info = combineInfo(s, a.inst.id, b.inst.id);
   if (!info) return { ok: false, reason: 'Nothing happens' };
   if (!prepaid) {
@@ -229,6 +238,69 @@ export function combine(s, aUid, bUid, { prepaid = false } = {}) {
   return { ok: true, inst, rare, info, firstTime };
 }
 
+// ---------------------------------------------------------------- bundles and trinkets
+
+// Stacking an ingredient on the same ingredient makes a bundle (up to 5).
+export function bundleInfo(s, aUid, bUid) {
+  const a = find(s, aUid);
+  const b = find(s, bUid);
+  if (!a || !b || a.inst.id !== b.inst.id || CARDS[a.inst.id].kind !== 'ingredient') return null;
+  const n = stackOf(a.inst) + stackOf(b.inst);
+  if (n > MAX_STACK) return { ok: false, n, reason: `Bundles hold at most ${MAX_STACK}` };
+  return { ok: true, n };
+}
+
+export function bundle(s, aUid, bUid) {
+  const info = bundleInfo(s, aUid, bUid);
+  if (!info || !info.ok) return { ok: false, reason: info?.reason || 'Nothing happens' };
+  const b = find(s, bUid).inst;
+  remove(s, aUid);
+  b.stack = info.n;
+  return { ok: true, inst: b };
+}
+
+export function forgeCost(s, size) {
+  return trinketMods(s).freeForge ? 0 : FORGE_COST[size];
+}
+
+// Forge a bundle into a random trinket of its size, in rack slot `slot`
+// (replacing whatever was there).
+export function forge(s, uid, slot) {
+  const f = find(s, uid);
+  if (!f) return { ok: false };
+  const size = stackOf(f.inst);
+  if (size < 2) return { ok: false, reason: 'Stack 2 or more of one resource to forge a trinket' };
+  const cost = forgeCost(s, size);
+  if (s.gold < cost) return { ok: false, reason: `Forging costs ${cost} gold` };
+  s.gold -= cost;
+  const have = new Set(s.trinkets.filter(Boolean).map((t) => t.id));
+  const all = TK_BY[f.inst.id][size];
+  const fresh = all.filter((id) => !have.has(id));
+  const r = rng(s);
+  const id = r.pick(fresh.length ? fresh : all);
+  r.done();
+  remove(s, uid);
+  const replaced = s.trinkets[slot];
+  const t = { uid: s.uid++, id };
+  s.trinkets[slot] = t;
+  return { ok: true, trinket: t, replaced, cost };
+}
+
+export function moveTrinket(s, from, to) {
+  if (from === to) return { ok: true };
+  [s.trinkets[from], s.trinkets[to]] = [s.trinkets[to], s.trinkets[from]];
+  return { ok: true };
+}
+
+export function sellTrinket(s, slot) {
+  const t = s.trinkets[slot];
+  if (!t) return { ok: false };
+  const price = trinketSellValue(t);
+  s.trinkets[slot] = null;
+  s.gold += price;
+  return { ok: true, price };
+}
+
 // ---------------------------------------------------------------- eating
 
 export function eatInfo(eaterId, meals = 0) {
@@ -241,7 +313,7 @@ export function eatInfo(eaterId, meals = 0) {
 export function eat(s, foodUid, eaterUid) {
   const food = find(s, foodUid);
   const eater = find(s, eaterUid);
-  if (!food || !eater || !eats(eater.inst.id, food.inst.id)) return { ok: false };
+  if (!food || !eater || !eats(eater.inst.id, food.inst.id) || stackOf(food.inst) > 1) return { ok: false };
   remove(s, foodUid);
   const inst = eater.inst;
   inst.meals = (inst.meals || 0) + 1;
@@ -297,6 +369,7 @@ export function snapshot(s, name = 'You') {
     gold: s.gold,
     slots: slotsToday(s),
     wall: s.wall.slice(0, slotsToday(s)).map((c) => (c ? { id: c.id, perm: c.perm, meals: c.meals || 0, owned: c.owned || 0 } : null)),
+    trinkets: (s.trinkets || []).filter(Boolean).map((t) => t.id),
   };
 }
 
@@ -315,7 +388,22 @@ export function finishFight(s, won, opponentName) {
     if (grow) c.perm += grow * (tombKing ? 2 : 1);
   }
 
+  // Trinkets that work between fights.
+  const tk = trinketMods(s);
+  const grow = (won ? tk.permOnWin || 0 : 0) + (tk.permAfter || 0);
+  if (grow) {
+    const r = rng(s);
+    const wall = s.wall.filter(Boolean);
+    for (let i = 0; i < grow && wall.length; i++) r.pick(wall).perm += 1;
+    r.done();
+  }
+
   lines.push(['Daily wage', RULES.dayGold]);
+  if (tk.gold) lines.push(['Trinkets', tk.gold]);
+  if (tk.interest) {
+    const g = Math.min(tk.interest, Math.floor(s.gold / 5));
+    if (g) lines.push(['Interest', g]);
+  }
   if (won) lines.push(['Victory bonus', RULES.winGold]);
   for (const c of owned(s)) {
     const d = CARDS[c.id];

@@ -18,14 +18,14 @@ export const POOLS = {
   desperado: ['werewolf', 'nightScorpion', 'moonFairy', 'nightWatch', 'warlock', 'moonhowler', 'venomDrinker', 'darkKnight', 'roc'],
 };
 // Each stage: how many cards of each tier a wall gets (4 = tier IV or a rare).
-const STAGES = {
+export const STAGES = {
   early: { day: 3, slots: 4, perm: 1, tiers: [1, 2, 2, 2] },
   mid: { day: 6, slots: 5, perm: 3, tiers: [2, 2, 2, 3, 3] },
   late: { day: 9, slots: 6, perm: 4, tiers: [3, 3, 3, 3, 3, 4] },
 };
 
 const tierOf = (id) => (CARDS[id].rare ? 4 : CARDS[id].tier);
-function sampleWall(name, st, r) {
+export function sampleWall(name, st, r) {
   const pool = POOLS[name];
   const ids = st.tiers.map((t) => {
     // Nearest tier the pool has: same, then one below, one above, and so on.

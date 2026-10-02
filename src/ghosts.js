@@ -3,6 +3,7 @@
 // by a bot that builds a plausible wall for the day. Swap `fetchGhost` and
 // `submitGhost` for a server call later; both are already async.
 import { CARDS, fortressHp, wallSlots } from './content.js';
+import { TK_BY } from './trinkets.js';
 import { createRng } from './rng.js';
 
 const KEY = 'stackbrawl.ghosts.v1';
@@ -78,8 +79,17 @@ export function botGhost(day, wins = 0, losses = 0, r = createRng(day * 7919)) {
     const j = r.int(i + 1);
     [wall[i], wall[j]] = [wall[j], wall[i]];
   }
+  // Trinkets grow with the day: bigger stacks and more of them.
+  const sizes = day >= 11 ? [5, 4, 3] : day >= 9 ? [4, 3, 3] : day >= 7 ? [3, 3, 2] : day >= 5 ? [3, 2] : day >= 3 ? [2] : [];
+  const resources = Object.keys(TK_BY);
+  const trinkets = [];
+  for (const n of sizes) {
+    const opts = TK_BY[r.pick(resources)][n].filter((id) => !trinkets.includes(id));
+    if (opts.length) trinkets.push(r.pick(opts));
+  }
   return {
     name: `Ghost of ${r.pick(NAMES)}`,
+    trinkets,
     day, wins, losses,
     hp: fortressHp(day),
     gold: 5 + day * 2,

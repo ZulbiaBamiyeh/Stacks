@@ -2,9 +2,11 @@
 import * as THREE from 'three';
 import { CARDS, PACKS, TRACKS, RULES, wallSlots, fortressHp, eats } from './content.js';
 import * as R from './run.js';
+import { TRINKETS, RACK_SLOTS, TK_BY, trinketSellValue } from './trinkets.js';
+import { TRINKET_METAL } from './gfx/draw.js';
 import { createBattle, DT } from './sim.js';
 import { fetchGhost, submitGhost } from './ghosts.js';
-import { createWorld, L, CARD, wallX, arenaX } from './gfx/world.js';
+import { createWorld, L, CARD, wallX, arenaX, rackX } from './gfx/world.js';
 import { CardView, loadArt, setAnisotropy, artURL, cardImageURL } from './gfx/card.js';
 import { createFx } from './gfx/fx.js';
 import { createFortressHud } from './gfx/fortress.js';
@@ -36,6 +38,7 @@ function load() {
     s.wall = s.wall.map((c) => (c && CARDS[c.id] ? c : null));
     s.shop = s.shop.map((o) => (o && CARDS[o.id] ? o : null));
     s.packs = s.packs.filter((p) => PACKS[p.pack]).map((p) => ({ ...p, cards: p.cards.filter((id) => CARDS[id]) })).filter((p) => p.cards.length);
+    s.trinkets = Array.from({ length: RACK_SLOTS }, (_, i) => (s.trinkets?.[i] && TRINKETS[s.trinkets[i].id] ? s.trinkets[i] : null));
     return s;
   } catch { return null; }
 }
@@ -46,6 +49,8 @@ function save() {
 let S = load() || R.newRun();
 let mode = 'shop';
 const views = new Map(); // inst uid -> CardView
+const trinketViews = new Map(); // trinket uid -> CardView (rack)
+let enemyTrinkets = []; // CardViews for the ghost's trinkets during a fight
 const packViews = new Map(); // pack uid -> CardView
 let marketViews = [];
 const combos = [];
@@ -176,7 +181,29 @@ function homeOf(inst) {
   return { x: inst.x ?? 0, z: inst.z ?? 0 };
 }
 
+// Trinket cards on the rack, keyed by trinket uid so moves keep their card.
+function syncTrinkets() {
+  const alive = new Set();
+  S.trinkets.forEach((t, i) => {
+    if (!t) return;
+    alive.add(t.uid);
+    let v = trinketViews.get(t.uid);
+    if (!v) {
+      v = new CardView(scene, { id: t.id });
+      v.place(rackX(i), L.rack.z);
+      trinketViews.set(t.uid, v);
+    }
+    v.trinket = t;
+    v.rackSlot = i;
+    if (mode !== 'battle' && mode !== 'intro' && mode !== 'outro' && !v.dragging && !v.busy && !v.flight) v.moveTo(rackX(i), L.rack.z);
+  });
+  for (const [uid, v] of trinketViews) {
+    if (!alive.has(uid) && !v.busy) { fx.puffs(v.pos, { n: 6, s: 0.35 }); v.dispose(scene); trinketViews.delete(uid); }
+  }
+}
+
 function syncViews() {
+  syncTrinkets();
   const alive = new Set();
   for (const inst of [...S.table, ...S.wall.filter(Boolean)]) {
     alive.add(inst.uid);
@@ -186,6 +213,7 @@ function syncViews() {
     if (!v) v = makeView(inst, h.x, h.z);
     v.inst = inst;
     if (v.perm !== inst.perm || v.id !== inst.id || v.meals !== (inst.meals || 0)) v.setFace(inst.id, inst.perm, inst.meals || 0);
+    if ((v.stack || 1) !== (inst.stack || 1)) v.setStack(inst.stack || 1);
     if (!v.dragging && !v.busy && !v.flight) v.moveTo(h.x, h.z);
   }
   for (const [uid, v] of views) {
@@ -310,7 +338,7 @@ const stage = $('stage');
 function pickAt(cx, cy) {
   const ray = world.pointerRay(cx, cy);
   const objs = [];
-  for (const v of [...views.values(), ...packViews.values(), ...marketViews.filter(Boolean), ...bv[1].filter(Boolean), ...bv[0].filter((x) => x && x.summoned)]) {
+  for (const v of [...views.values(), ...trinketViews.values(), ...enemyTrinkets, ...packViews.values(), ...marketViews.filter(Boolean), ...bv[1].filter(Boolean), ...bv[0].filter((x) => x && x.summoned)]) {
     if (!v.dead) objs.push(v.body, v.face);
   }
   for (const t of tiles) t.group.traverse((o) => { if (o.isMesh) objs.push(o); });
@@ -331,15 +359,33 @@ function pickAt(cx, cy) {
 const inRect = (x, z, cx, cz, w, h) => Math.abs(x - cx) <= w / 2 && Math.abs(z - cz) <= h / 2;
 
 function canDrag(v) {
-  if (mode !== 'shop' || v.busy || v.flight) return false;
+  if (mode !== 'shop' || v.busy || v.flight || v.enemyTrinket) return false;
   return true;
 }
 
 // ------------------------------------------------------------------ drop logic
 
+const stackOf = (v) => v.inst?.stack || 1;
+function rackSlotAt(x, z) {
+  for (let i = 0; i < RACK_SLOTS; i++) if (inRect(x, z, rackX(i), L.rack.z, L.rack.step, CARD.h + 0.5)) return i;
+  return -1;
+}
+
 function evalDrop(v, x, z) {
   const def = v.def;
+  if (v.trinket) {
+    const slot = rackSlotAt(x, z);
+    if (slot >= 0) return { kind: 'tmove', slot };
+    if (inRect(x, z, L.sellX, L.shopZ, L.tile.w + 0.3, L.tile.h + 0.3)) return { kind: 'tsell' };
+    return { kind: 'tback' };
+  }
   if (!v.pack) {
+    const slot = rackSlotAt(x, z);
+    if (slot >= 0 && v.market == null) {
+      if (def.kind !== 'ingredient') return { kind: 'bad', why: 'Only bundles of one resource can be forged into trinkets' };
+      if (stackOf(v) < 2) return { kind: 'bad', why: 'Stack 2 or more of the same resource first' };
+      return { kind: 'forge', slot, size: stackOf(v), res: v.id, replaces: S.trinkets[slot] };
+    }
     // Card under the dragged card's centre
     let best = null;
     for (const w of views.values()) {
@@ -351,7 +397,13 @@ function evalDrop(v, x, z) {
         if (!best || d < best.d) best = { w, d };
       }
     }
-    if (best) {
+    if (best && v.market == null && def.kind === 'ingredient' && best.w.id === v.id) {
+      const bi = R.bundleInfo(S, v.inst.uid, best.w.inst.uid);
+      if (bi?.ok) return { kind: 'bundle', target: best.w, n: bi.n };
+      return { kind: 'bad', why: bi?.reason || 'Nothing happens' };
+    }
+    if (best && stackOf(v) > 1) best = { ...best, bundle: true };
+    if (best && !best.bundle && (best.w.inst?.stack || 1) === 1) {
       if (eats(best.w.id, v.id)) return { kind: 'eat', target: best.w };
       const info = R.combineInfo(S, v.id, best.w.id);
       if (info) return { kind: 'card', target: best.w, info };
@@ -372,6 +424,16 @@ function evalDrop(v, x, z) {
 }
 
 function dropHint(d, v) {
+  if (d.kind === 'bundle') return [`Bundle ×${d.n}${d.n >= 2 ? ' · drop on the trinket rack to forge' : ''}`, false];
+  if (d.kind === 'forge') {
+    const cost = R.forgeCost(S, d.size);
+    const broke = S.gold < cost;
+    const rep = d.replaces ? ` · replaces <b>${ui.esc(TRINKETS[d.replaces.id].name)}</b>` : '';
+    return [`Forge a ${TRINKET_METAL[d.size].name.toLowerCase()} trinket · ${ui.ico('coin')} ${cost}${broke ? ' (not enough gold)' : ''}${rep}`, broke];
+  }
+  if (d.kind === 'tmove') return [S.trinkets[d.slot] && S.trinkets[d.slot] !== v.trinket ? 'Swap trinkets' : 'Move trinket', false];
+  if (d.kind === 'tsell') return [`Sell for ${ui.ico('coin')} ${trinketSellValue(v.trinket)}`, false];
+  if (d.kind === 'tback') return [null, false];
   if (d.kind === 'card') {
     const key = `${d.info.a}+${d.info.b}`;
     const known = codex.has(key);
@@ -492,6 +554,15 @@ function pan(e) {
   stage.className = 'grabbing';
 }
 
+// What a resource card can become on the trinket rack.
+function bundleNote(card) {
+  if (card.def?.kind !== 'ingredient') return '';
+  const n = card.inst?.stack || 1;
+  if (n < 2) return `<p class="muted">Stack ${ui.esc(card.def.name)} on ${ui.esc(card.def.name)} to make a bundle (up to ×5), then forge it into a trinket on the rack.</p>`;
+  const names = TK_BY[card.id][n].map((id) => `<b>${ui.esc(TRINKETS[id].name)}</b>`).join(', ');
+  return `<p><b>Bundle ×${n}.</b> Drop it on the trinket rack to forge one of ${names} (${ui.ico('coin')} ${R.forgeCost(S, n)}).</p>`;
+}
+
 function updateHover(cx, cy) {
   const hit = pickAt(cx, cy);
   const card = hit?.card || null;
@@ -499,10 +570,11 @@ function updateHover(cx, cy) {
   hover = card || tile;
   stage.className = card || tile ? 'point' : '';
   if (card) {
-    if (card.enemy || card.summoned) ui.info(ui.cardInfo(card.id, { inst: { perm: card.perm }, codex }));
+    if (card.trinket || card.enemyTrinket) ui.info(ui.trinketInfo(card.id, { sell: card.trinket && mode === 'shop' ? trinketSellValue(card.trinket) : null }));
+    else if (card.enemy || card.summoned) ui.info(ui.cardInfo(card.id, { inst: { perm: card.perm }, codex }));
     else if (card.pack) ui.info(ui.packInfo(card.pack, { price: false }));
     else if (card.market != null) ui.info(ui.cardInfo(card.id, { price: S.shop[card.market]?.price, codex }));
-    else ui.info(ui.cardInfo(card.id, { inst: card.inst, sell: card.inst && mode === 'shop' ? R.sellPrice(S, card.inst) : null, codex }));
+    else ui.info(ui.cardInfo(card.id, { inst: card.inst, sell: card.inst && mode === 'shop' ? R.sellPrice(S, card.inst) : null, codex, extra: bundleNote(card) }));
   } else if (tile) {
     if (tile.kind === 'pack') ui.info(ui.packInfo(tile.pack));
     else if (tile.kind === 'sell') ui.info('<h3>Sell</h3><p>Drop a card here for gold: 1 per tier (ingredients sell for 1).</p>');
@@ -550,6 +622,10 @@ function moveDrag(e) {
 
 // The card a drop would produce: a combine's result, or the eater after its meal.
 function dropPreview(d) {
+  if (d.kind === 'forge') {
+    const ids = TK_BY[d.res][d.size];
+    return { key: `f:${d.res}:${d.size}`, label: 'Forges one of', cards: ids.map((id) => ({ id, img: cardImageURL(id), name: TRINKETS[id].name, text: TRINKETS[id].text })) };
+  }
   if (d.kind === 'card') {
     const r = d.info;
     const rareKnown = codex.has(`${r.a}+${r.b}!`);
@@ -586,6 +662,17 @@ function endDrag() {
   stage.className = '';
   sfx.drop();
 
+  if (card.trinket) {
+    if (d.kind === 'tmove') { R.moveTrinket(S, card.rackSlot, d.slot); card.kick(0.08); sfx.drop(); }
+    else if (d.kind === 'tsell') {
+      const slot = card.rackSlot;
+      const res = R.sellTrinket(S, slot);
+      if (res.ok) { sfx.coin(); fx.number(card.pos.clone().setY(0.5), `+${res.price}`, 'gold'); }
+    } else card.moveTo(rackX(card.rackSlot), L.rack.z);
+    refresh();
+    return;
+  }
+
   if (card.pack) {
     const p = card.packRef;
     Object.assign(p, clampTable({ x: d.x ?? card.target.x, z: d.z ?? card.target.z }));
@@ -611,6 +698,45 @@ function endDrag() {
   }
 
   const inst = card.inst;
+  if (d.kind === 'bundle') {
+    const target = d.target;
+    const res = R.bundle(S, inst.uid, target.inst.uid);
+    if (!res.ok) { ui.toast(res.reason, 'bad'); bounceBack(card); refresh(); return; }
+    views.delete(inst.uid);
+    card.busy = true;
+    leaving.add(card);
+    card.flyTo(target.pos.x, target.pos.z, { dur: 0.22, arc: 0.6, done: () => { leaving.delete(card); card.dispose(scene); target.kick(0.12); } });
+    sfx.drop();
+    refresh();
+    return;
+  }
+  if (d.kind === 'forge') {
+    const res = R.forge(S, inst.uid, d.slot);
+    if (!res.ok) { ui.toast(res.reason, 'bad', 'coin'); bounceBack(card); refresh(); return; }
+    views.delete(inst.uid);
+    card.busy = true;
+    leaving.add(card);
+    card.scaleGoal = 0.3;
+    const sx = rackX(d.slot);
+    card.flyTo(sx, L.rack.z, {
+      dur: 0.35, arc: 1.4, done: () => {
+        leaving.delete(card);
+        card.dispose(scene);
+        fx.sparkles(new THREE.Vector3(sx, 0.4, L.rack.z), { n: 22, color: '#ffe9a8', spread: 1.2 });
+        const v = trinketViews.get(res.trinket.uid);
+        if (v) { v.flip = Math.PI; v.flipGoal = 0; v.kick(0.2); }
+        sfx.rare();
+        const t = TRINKETS[res.trinket.id];
+        ui.toast(`Forged <b>${ui.esc(t.name)}</b>`, 'good', 'bless');
+      },
+    });
+    sfx.coin();
+    refresh();
+    // the new trinket waits face-down until the bundle lands on it
+    const nv = trinketViews.get(res.trinket.uid);
+    if (nv) { nv.flip = Math.PI; nv.flipGoal = Math.PI; }
+    return;
+  }
   if (d.kind === 'card') {
     if (S.gold < d.info.cost) { ui.toast(`Combining this costs ${d.info.cost} gold`, 'bad', 'coin'); bounceBack(card); refresh(); return; }
     return startCombine(card, d.target);
@@ -926,6 +1052,25 @@ async function startFight() {
     v.enemy = true;
     bv[1][i] = v;
   }
+  // Trinkets sit beside each wall in the arena.
+  const tkPos = (i, z) => ({ x: 5.35 + (i % 3) * 1.05, z: z + (i < 3 ? -0.62 : 0.62) });
+  let ti = 0;
+  for (const v of trinketViews.values()) {
+    const p = tkPos(ti++, A.playerZ);
+    v.busy = true;
+    v.scaleGoalBase = 0.72;
+    v.flyTo(p.x, p.z, { dur: 0.9, arc: 3.5, delay: 0.2 + ti * 0.05 });
+  }
+  enemyTrinkets = (ghost.trinkets || []).filter((id) => TRINKETS[id]).map((id, i) => {
+    const v = new CardView(scene, { id });
+    const p = tkPos(i, A.enemyZ);
+    v.place(p.x, p.z - 3);
+    v.flyTo(p.x, p.z, { dur: 0.7, arc: 4, delay: 0.9 + i * 0.1 });
+    v.enemyTrinket = true;
+    v.busy = true;
+    v.scaleGoalBase = 0.72;
+    return v;
+  });
   fortFx[0].reset();
   fortFx[1].reset();
   fortHud[0].reset(snap.hp);
@@ -983,7 +1128,7 @@ function battleEvent(e) {
       break;
     case 'delay': {
       const tv = e.target && bv[e.target.side][e.target.slot];
-      if (e.src && e.target) fx.projectile(unitPos(e.src), unitPos(e.target), 'sand', { arc: 1, dur: 0.3, size: 0.6, onHit: () => { if (tv) { tv.kick(-0.1); fx.label(tv.pos.clone().setY(0.4), 'slowed', '#e8c98f', 0.55); } } });
+      if (e.target) fx.projectile(e.src ? unitPos(e.src) : lastTk[1 - e.target.side] || towerPos(1 - e.target.side), unitPos(e.target), 'sand', { arc: 1, dur: 0.3, size: 0.6, onHit: () => { if (tv) { tv.kick(-0.1); fx.label(tv.pos.clone().setY(0.4), 'slowed', '#e8c98f', 0.55); } } });
       break;
     }
     case 'status': {
@@ -1002,7 +1147,7 @@ function battleEvent(e) {
       break;
     case 'freeze': {
       const tv = bv[e.target.side][e.target.slot];
-      fx.projectile(unitPos(e.src), unitPos(e.target), 'freeze', { arc: 1.6, dur: 0.3, onHit: () => { if (tv) { fx.sparkles(tv.pos, { n: 6, color: '#bfe9ff' }); tv.kick(-0.08); } sfx.freeze(); } });
+      fx.projectile(e.src ? unitPos(e.src) : lastTk[1 - e.target.side] || towerPos(1 - e.target.side), unitPos(e.target), 'freeze', { arc: 1.6, dur: 0.3, onHit: () => { if (tv) { fx.sparkles(tv.pos, { n: 6, color: '#bfe9ff' }); tv.kick(-0.08); } sfx.freeze(); } });
       break;
     }
     case 'bless': {
@@ -1026,6 +1171,21 @@ function battleEvent(e) {
       v.summoned = true;
       if (e.src) fx.projectile(unitPos(e.src), new THREE.Vector3(arenaX(e.slot), 0.3, z), 'dmg', { arc: 1, dur: 0.25, size: 0.6 });
       bv[e.side][e.slot] = v;
+      break;
+    }
+    case 'trinket': {
+      const v = e.side === 0 ? [...trinketViews.values()].find((w) => w.id === e.id) : enemyTrinkets.find((w) => w.id === e.id);
+      if (!v) break;
+      v.kick(0.18);
+      v.hop(1.8);
+      v.glowGoal = 0;
+      fx.sparkles(v.pos.clone().setY(0.3), { n: 5, color: '#ffe9a8', spread: 0.5 });
+      lastTk[e.side] = v.pos.clone().setY(0.35);
+      break;
+    }
+    case 'confused': {
+      const v = bv[e.src.side][e.src.slot];
+      if (v) { fx.label(v.pos.clone().setY(0.5), 'confused!', '#d9b3ff', 0.8); v.kick(-0.1); }
       break;
     }
     case 'revive':
@@ -1135,6 +1295,19 @@ function showResult() {
   });
 }
 
+// After a fight: our trinkets fly home to the rack, the ghost's vanish.
+function returnTrinkets(animate) {
+  for (const v of enemyTrinkets) { if (animate) fx.puffs(v.pos, { n: 6, s: 0.35 }); v.dispose(scene); }
+  enemyTrinkets = [];
+  for (const v of trinketViews.values()) {
+    v.busy = false;
+    v.scaleGoalBase = 1;
+    if (animate) v.flyTo(rackX(v.rackSlot), L.rack.z, { dur: 0.85, arc: 4, delay: 0.1 });
+    else v.place(rackX(v.rackSlot), L.rack.z);
+  }
+}
+const lastTk = [null, null];
+
 function closeBattle() {
   ui.modal(null);
   ui.hideBanner();
@@ -1149,6 +1322,7 @@ function closeBattle() {
     v.frostGoal = 0;
     v.flyTo(wallX(i), L.wall.z, { dur: 0.85, arc: 4, delay: i * 0.06, done: (c) => { c.busy = false; } });
   }
+  returnTrinkets(true);
   bv = [[], []];
   B = null;
   world.frame(HOME.x, HOME.z, HOME.w, HOME.h);
@@ -1191,6 +1365,7 @@ function abortBattle() {
   fortHud[0].hide();
   fortHud[1].hide();
   for (const v of bv[1]) if (v) v.dispose(scene);
+  returnTrinkets(false);
   bv = [[], []];
   B = null;
   fx.clear();
@@ -1202,6 +1377,8 @@ function newRun() {
   if (mode !== 'shop' && mode !== 'over') abortBattle();
   for (const v of views.values()) v.dispose(scene);
   for (const v of packViews.values()) v.dispose(scene);
+  for (const v of trinketViews.values()) v.dispose(scene);
+  trinketViews.clear();
   for (const v of marketViews) if (v) v.dispose(scene);
   views.clear();
   packViews.clear();
@@ -1272,11 +1449,11 @@ function frame(now) {
   }
   updateBattle(dt);
 
-  const all = [...views.values(), ...leaving, ...packViews.values(), ...marketViews.filter(Boolean), ...bv[1].filter(Boolean), ...bv[0].filter((v) => v && v.summoned)];
+  const all = [...views.values(), ...trinketViews.values(), ...enemyTrinkets, ...leaving, ...packViews.values(), ...marketViews.filter(Boolean), ...bv[1].filter(Boolean), ...bv[0].filter((v) => v && v.summoned)];
   for (const v of all) {
     const hovered = v === hover && !drag && !v.busy;
     v.liftGoal = v.restLift + (v.dragging ? 0.75 : hovered ? 0.1 : 0) + (v.busy && combos.some((c) => c.a === v) ? 0.06 : 0);
-    v.scaleGoal = v.dragging ? 1.07 : hovered ? 1.035 : 1;
+    v.scaleGoal = (v.scaleGoalBase || 1) * (v.dragging ? 1.07 : hovered ? 1.035 : 1);
     v.update(dt);
   }
   for (const t of tiles) {

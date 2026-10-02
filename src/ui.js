@@ -1,7 +1,8 @@
 // DOM overlay: HUD chips, hover info, drag hint, toasts, banners, modals,
 // and the fortress bars during a fight.
 import { CARDS, PACKS, RECIPES, RULES, fortressHp, wallSlots, combineCost } from './content.js';
-import { iconURL, ROMAN, cardStats } from './gfx/draw.js';
+import { iconURL, ROMAN, cardStats, TRINKET_METAL } from './gfx/draw.js';
+import { TRINKETS, TK_BY } from './trinkets.js';
 
 const $ = (id) => document.getElementById(id);
 const ico = (name) => `<i class="ico" style="background-image:url(${iconURL(name)})"></i>`;
@@ -84,8 +85,9 @@ export function createUI() {
     const madeOf = from.length ? `<div class="cb-foot">Made from ${from.map((r) => `${esc(nameOf(r.a))} + ${esc(nameOf(r.b))}`).join(' or ')}</div>` : '';
     const eats = d.eats ? `<div class="cb-foot">Eats ${d.eats.foods.map((f) => `${ico(f)}${esc(nameOf(f))}`).join(' ')}${d.eats.evolve ? ` · evolves at ${d.eats.evolve[0]}` : ''}</div>` : '';
     const eaters = d.kind === 'ingredient' ? Object.values(CARDS).filter((c) => c.eats?.foods.includes(id)) : [];
+    const forge = d.kind === 'ingredient' && TK_BY[id] ? `<div class="cb-foot">Bundle ×2–×5 on the rack: ${[2, 3, 4, 5].map((n) => `${TRINKET_METAL[n].name.toLowerCase()} ×${n}`).join(', ')} trinkets</div>` : '';
     const fedTo = eaters.length ? `<div class="cb-foot">Food for ${eaters.map((c) => esc(c.name)).join(', ')}</div>` : '';
-    el.innerHTML = `<div class="cb-head">${thumb(id, 'big')}<div><b>${esc(d.name)}</b><span class="muted">${uses.length ? `combines with ${uses.length}` : 'no combinations'}</span></div></div>${rows ? `<div class="cb-list">${rows}</div>` : ''}${eats}${fedTo}${madeOf}`;
+    el.innerHTML = `<div class="cb-head">${thumb(id, 'big')}<div><b>${esc(d.name)}</b><span class="muted">${uses.length ? `combines with ${uses.length}` : 'no combinations'}</span></div></div>${rows ? `<div class="cb-list">${rows}</div>` : ''}${eats}${fedTo}${forge}${madeOf}`;
     el.hidden = false;
     el.style.left = '0px';
     el.style.top = '0px';
@@ -100,8 +102,14 @@ export function createUI() {
     if (!p) { el.hidden = true; el.dataset.key = ''; return; }
     if (el.dataset.key !== p.key) {
       el.dataset.key = p.key;
-      const d = CARDS[p.id];
-      el.innerHTML = `<div class="pv-label">${p.label}</div><img class="pv-card" src="${p.img}" width="400" height="544" alt="${esc(d.name)}"><p class="pv-text">${esc(d.text)}</p>${p.note ? `<div class="pv-note">${p.note}</div>` : ''}`;
+      if (p.cards) {
+        el.classList.add('multi');
+        el.innerHTML = `<div class="pv-label">${p.label}</div><div class="pv-grid">${p.cards.map((c) => `<div class="pv-opt"><img class="pv-card" src="${c.img}" width="400" height="544" alt="${esc(c.name)}"><b>${esc(c.name)}</b><span>${esc(c.text)}</span></div>`).join('')}</div>`;
+      } else {
+        el.classList.remove('multi');
+        const d = CARDS[p.id] || TRINKETS[p.id];
+        el.innerHTML = `<div class="pv-label">${p.label}</div><img class="pv-card" src="${p.img}" width="400" height="544" alt="${esc(d.name)}"><p class="pv-text">${esc(d.text)}</p>${p.note ? `<div class="pv-note">${p.note}</div>` : ''}`;
+      }
     }
     el.hidden = false;
     const r = el.getBoundingClientRect();
@@ -115,6 +123,13 @@ export function createUI() {
     }
     el.style.left = `${Math.max(8, Math.min(window.innerWidth - r.width - 8, left))}px`;
     el.style.top = `${Math.max(8, Math.min(window.innerHeight - r.height - 8, top))}px`;
+  }
+
+  function trinketInfo(id, { sell = null } = {}) {
+    const t = TRINKETS[id];
+    const M = TRINKET_METAL[t.size];
+    const right = sell != null ? `<span class="sell muted">sells ${ico('coin')} ${sell}</span>` : '';
+    return `<h3>${esc(t.name)}</h3><span class="tag">${M.name} trinket · ${ico(t.res)} ×${t.size}</span>${right}<p>${esc(t.text)}</p><p class="muted small">Trinkets on the rack work in every fight. Drag to rearrange, or onto Sell.</p>`;
   }
 
   function packInfo(packId, { price = true } = {}) {
@@ -361,5 +376,5 @@ export function createUI() {
       <div class="actions"><button class="big-btn ghost" data-close type="button">Cancel</button><button class="big-btn red" data-confirm-new type="button">Start new game</button></div>`);
   }
 
-  return { menu, confirmNewGame, hud, cardInfo, combos, preview, packInfo, info, hint, toast, banner, hideBanner, modal, battleStart, battleUpdate, battleEnd, flashStatus, breakdown, setSpeed, setSound, ideas, help, ico, esc };
+  return { menu, confirmNewGame, hud, cardInfo, trinketInfo, combos, preview, packInfo, info, hint, toast, banner, hideBanner, modal, battleStart, battleUpdate, battleEnd, flashStatus, breakdown, setSpeed, setSound, ideas, help, ico, esc };
 }

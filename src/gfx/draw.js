@@ -447,7 +447,7 @@ const ART_TINT = {
   bless: '#f8eec6', luck: '#e3f0d6', freeze: '#dbf0f8', heat: '#fbe0bf',
 };
 
-export function drawCard(def, { perm = 0, art = null, summon = false, meals = 0, live = null } = {}) {
+export function drawCard(def, { perm = 0, art = null, summon = false, meals = 0, live = null, stack = 1 } = {}) {
   const { w, h } = CARD_PX;
   const cv = canvas(w, h);
   const ctx = cv.getContext('2d');
@@ -522,6 +522,23 @@ export function drawCard(def, { perm = 0, art = null, summon = false, meals = 0,
         for (const [x, y, s] of [[-108, -84, 30], [104, -96, 24], [112, 70, 20], [-112, 88, 18]]) glyph(ctx, 'bless', cx + x, cy + y, s);
       }
     }
+  }
+
+  // Bundles: a big count badge in the corner of the art window.
+  if (stack > 1) {
+    const bx = w - 78;
+    const byy = HEAD + 70;
+    ctx.fillStyle = INK;
+    circle(ctx, bx, byy, 50);
+    ctx.fill();
+    ctx.fillStyle = ['', '', '#e3b98a', '#d7dde4', '#f3cf5a', '#c9a8f2'][stack];
+    circle(ctx, bx, byy, 42);
+    ctx.fill();
+    ctx.fillStyle = INK;
+    ctx.font = font(44, 900);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`×${stack}`, bx, byy + 3);
   }
 
   // Hunger pill for eaters: meals eaten and the next evolution.
@@ -1188,6 +1205,170 @@ export function drawWallBand(wPx, hPx, seed = 5) {
   ctx.strokeStyle = INK;
   ctx.lineWidth = 8;
   rrect(ctx, 4, 4, wPx - 8, hPx - 8, 40);
+  ctx.stroke();
+  return cv;
+}
+
+// ---------------------------------------------------------------- trinkets
+
+// Metal by stack size: bronze, silver, gold, starmetal.
+export const TRINKET_METAL = {
+  2: { body: '#c8956a', dark: '#8a5a36', light: '#ecc39c', name: 'Bronze' },
+  3: { body: '#b9c3cf', dark: '#6f7c8c', light: '#e8eef5', name: 'Silver' },
+  4: { body: '#e9c25a', dark: '#a87b1c', light: '#fff0b0', name: 'Gold' },
+  5: { body: '#a98ae0', dark: '#5d3fa0', light: '#e8dcff', name: 'Starmetal' },
+};
+
+export function drawTrinket(def, { art = null } = {}) {
+  const { w, h } = CARD_PX;
+  const cv = canvas(w, h);
+  const ctx = cv.getContext('2d');
+  const M = TRINKET_METAL[def.size];
+  const R = 30;
+  // body: dark cloth inside a metal frame
+  ctx.save();
+  rrect(ctx, 5, 5, w - 10, h - 10, R);
+  ctx.clip();
+  const g = ctx.createLinearGradient(0, 0, w, h);
+  g.addColorStop(0, M.light);
+  g.addColorStop(0.5, M.body);
+  g.addColorStop(1, M.dark);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#2f2a3a';
+  rrect(ctx, 22, 22, w - 44, h - 44, 22);
+  ctx.fill();
+  ctx.restore();
+  // corner rivets
+  for (const [x, y] of [[22, 22], [w - 22, 22], [22, h - 22], [w - 22, h - 22]]) {
+    ctx.fillStyle = M.light;
+    circle(ctx, x, y, 9);
+    ctx.fill();
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+  // name plate
+  ctx.fillStyle = M.body;
+  rrect(ctx, 40, 36, w - 80, 66, 18);
+  ctx.fill();
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 4;
+  ctx.stroke();
+  ctx.fillStyle = INK;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  fitText(ctx, def.name, w - 110, 34, 900, 16);
+  ctx.fillText(def.name, w / 2, 71);
+  // art medallion
+  const cx = w / 2;
+  const cy = 252;
+  const rad = 128;
+  if (art) {
+    ctx.save();
+    circle(ctx, cx, cy, rad);
+    ctx.clip();
+    const sc = Math.max((rad * 2) / art.width, (rad * 2) / art.height);
+    ctx.drawImage(art, cx - (art.width * sc) / 2, cy - (art.height * sc) / 2, art.width * sc, art.height * sc);
+    ctx.restore();
+  } else {
+    const rg = ctx.createRadialGradient(cx - 30, cy - 40, 10, cx, cy, rad);
+    rg.addColorStop(0, '#5b4f72');
+    rg.addColorStop(1, '#3a3249');
+    ctx.fillStyle = rg;
+    circle(ctx, cx, cy, rad);
+    ctx.fill();
+    // placeholder: the resource it was forged from, ringed with sparkles
+    ctx.fillStyle = '#f6efdc';
+    circle(ctx, cx, cy, 78);
+    ctx.fill();
+    glyph(ctx, def.res, cx, cy, 120);
+    const sp = [[-98, -70, 26], [96, -84, 22], [104, 76, 18], [-104, 82, 16]];
+    for (const [x, y, z] of sp.slice(0, def.size - 1)) glyph(ctx, 'bless', cx + x, cy + y, z);
+  }
+  ctx.lineWidth = 10;
+  ctx.strokeStyle = M.body;
+  circle(ctx, cx, cy, rad + 4);
+  ctx.stroke();
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = INK;
+  circle(ctx, cx, cy, rad + 9);
+  ctx.stroke();
+  // pips: one resource token per item in the stack
+  const n = def.size;
+  const step = 58;
+  const x0 = cx - ((n - 1) * step) / 2;
+  for (let i = 0; i < n; i++) {
+    const x = x0 + i * step;
+    ctx.fillStyle = '#f6efdc';
+    circle(ctx, x, 438, 24);
+    ctx.fill();
+    ctx.strokeStyle = M.body;
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    glyph(ctx, def.res, x, 438, 34);
+  }
+  ctx.fillStyle = M.light;
+  ctx.font = font(22, 900);
+  ctx.textAlign = 'center';
+  ctx.fillText(`${M.name.toUpperCase()} TRINKET`, cx, 492);
+  // outer outline
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 8;
+  rrect(ctx, 5, 5, w - 10, h - 10, R);
+  ctx.stroke();
+  return cv;
+}
+
+// The shelf the trinkets sit on: a strip of dark velvet with five
+// gold-edged slots.
+export function drawRackBand(wPx, hPx, slots, slotW, slotH, step, x0) {
+  const cv = canvas(wPx, hPx);
+  const ctx = cv.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, hPx);
+  g.addColorStop(0, '#5a3d58');
+  g.addColorStop(1, '#3e2a40');
+  ctx.fillStyle = g;
+  rrect(ctx, 4, 4, wPx - 8, hPx - 8, 36);
+  ctx.fill();
+  // velvet nap
+  const r = createRng(11);
+  ctx.save();
+  rrect(ctx, 4, 4, wPx - 8, hPx - 8, 36);
+  ctx.clip();
+  ctx.globalAlpha = 0.07;
+  for (let i = 0; i < 900; i++) {
+    ctx.fillStyle = r.chance(0.5) ? '#fff' : '#000';
+    ctx.fillRect(r.next() * wPx, r.next() * hPx, 2, 6);
+  }
+  ctx.restore();
+  // gold trim
+  ctx.strokeStyle = '#e2b94e';
+  ctx.lineWidth = 6;
+  rrect(ctx, 16, 16, wPx - 32, hPx - 32, 26);
+  ctx.stroke();
+  // slots
+  for (let i = 0; i < slots; i++) {
+    const x = x0 + i * step - slotW / 2;
+    const y = (hPx - slotH) / 2;
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    rrect(ctx, x, y, slotW, slotH, 22);
+    ctx.fill();
+    ctx.setLineDash([14, 10]);
+    ctx.strokeStyle = 'rgba(242,214,140,0.65)';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(242,214,140,0.5)';
+    ctx.save();
+    ctx.translate(x + slotW / 2, y + slotH / 2);
+    ctx.rotate(Math.PI / 4);
+    ctx.fillRect(-12, -12, 24, 24);
+    ctx.restore();
+  }
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 8;
+  rrect(ctx, 4, 4, wPx - 8, hPx - 8, 36);
   ctx.stroke();
   return cv;
 }
