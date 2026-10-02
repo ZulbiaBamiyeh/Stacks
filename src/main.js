@@ -927,7 +927,7 @@ function battleEvent(e) {
     case 'tick': {
       fx.puffs(towerPos(e.side).setY(1.2), { n: Math.min(8, 2 + Math.floor(e.amount / 5)), s: 0.26, spread: 0.9, color: e.kind === 'burn' ? '#ffb070' : '#b6e38a' });
       ui.flashStatus(e.side, e.kind);
-      fortHud[e.side].tick(e.kind);
+      fortHud[e.side].tick(e.kind, e.amount);
       break;
     }
     case 'heal':

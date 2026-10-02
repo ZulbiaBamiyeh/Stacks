@@ -8,21 +8,26 @@ import { RULES } from '../content.js';
 
 const KIND = {
   hit: { color: '#fff7e6', icon: 'dmg', sign: '-' },
-  blocked: { color: '#8fbfee', icon: 'shield', sign: '-' },
-  burn: { color: '#ff9a4a', icon: 'burn', sign: '-' },
-  poison: { color: '#9fd05f', icon: 'poison', sign: '-' },
-  heal: { color: '#8fe07a', icon: 'heal', sign: '+' },
-  shield: { color: '#8fbfee', icon: 'shield', sign: '+' },
-  sudden: { color: '#e05050', icon: null, sign: '-' },
+  sudden: { color: '#ff7a6a', icon: null, sign: '-' },
+  heal: { color: '#9cf08a', icon: 'heal', sign: '+' },
 };
 
 export const BAR = { w: 9.6, h: 1.25 };
 
-// Counter lanes relative to the bar centre (x, z). Losses left, gains right.
-const LANES = {
-  hit: [-6.5, -0.4], blocked: [-6.5, 0.45], burn: [-8.2, -0.4], poison: [-8.2, 0.45], sudden: [-8.2, 1.2],
-  heal: [6.5, -0.4], shield: [6.5, 0.45],
+// Damage and heal totals float just above the bar, either side of the HP number.
+const LANES = { hit: -3.6, sudden: -6.6, heal: 0 };
+
+// Status pills sit on the bar beside the HP number, The Bazaar style: shield
+// on the left, burn and poison on the right.
+const PILL = {
+  shield: { fill: ['#ffe58a', '#e8b52e'], ring: '#f6d35a', text: '#ffe27a' },
+  burn: { fill: ['#ffb46a', '#ef6a2a'], ring: '#ff9a4a', text: '#ffc58f' },
+  poison: { fill: ['#c6ef8c', '#5fae3a'], ring: '#9fd05f', text: '#cdf2a6' },
 };
+const PILL_PX = { w: 280, h: 150 };
+const PILL_H = 0.92;
+const PILL_W = (PILL_H * PILL_PX.w) / PILL_PX.h;
+const PILL_X = { shield: -2.05, first: 2.05, second: 3.85 };
 
 const font = (px) => `900 ${px}px "Nunito", sans-serif`;
 
@@ -31,94 +36,159 @@ function drawBar(st) {
   const Hp = 150;
   const cv = D.canvas(Wp, Hp);
   const c = cv.getContext('2d');
-  // frame
-  c.fillStyle = '#2b2724';
-  D.rrect(c, 0, 0, Wp, Hp, 40);
+  // frame with a soft drop edge
+  c.fillStyle = '#1f1b19';
+  D.rrect(c, 0, 4, Wp, Hp - 4, 40);
+  c.fill();
+  c.fillStyle = '#2f2a26';
+  D.rrect(c, 0, 0, Wp, Hp - 6, 40);
   c.fill();
   const bx = 14;
-  const by = 14;
+  const by = 13;
   const bw = Wp - 28;
-  const bh = Hp - 28;
+  const bh = Hp - 32;
   c.save();
-  D.rrect(c, bx, by, bw, bh, 30);
+  D.rrect(c, bx, by, bw, bh, 28);
   c.clip();
-  c.fillStyle = '#4a433d';
+  // empty track
+  const track = c.createLinearGradient(0, by, 0, by + bh);
+  track.addColorStop(0, '#2a2422');
+  track.addColorStop(1, '#3e3632');
+  c.fillStyle = track;
   c.fillRect(bx, by, bw, bh);
   const p = Math.max(0, st.hp) / st.max;
   const lag = Math.min(1, Math.max(p, st.lag / st.max));
-  c.fillStyle = '#fff3d6';
-  c.fillRect(bx, by, bw * lag, bh);
+  // the chunk just lost glows then drains away
+  if (lag > p) {
+    c.fillStyle = st.flash > 0 ? '#fff6e0' : '#e8604a';
+    c.fillRect(bx + bw * p, by, bw * (lag - p), bh);
+  }
+  const low = p < 0.3;
   const hpGrad = c.createLinearGradient(0, by, 0, by + bh);
-  hpGrad.addColorStop(0, st.flash > 0 ? '#ff9c8c' : '#7fd16a');
-  hpGrad.addColorStop(1, st.flash > 0 ? '#e0604f' : '#4fa648');
+  hpGrad.addColorStop(0, low ? '#f0a35a' : '#86d870');
+  hpGrad.addColorStop(0.55, low ? '#e07c3a' : '#5cb84f');
+  hpGrad.addColorStop(1, low ? '#c0582a' : '#3f9140');
   c.fillStyle = hpGrad;
   c.fillRect(bx, by, bw * p, bh);
+  // glossy top band
+  c.fillStyle = 'rgba(255,255,255,0.22)';
+  c.fillRect(bx, by + 6, bw * p, bh * 0.22);
   if (st.healFlash > 0) {
-    c.globalAlpha = st.healFlash * 0.6;
-    c.fillStyle = '#e8ffd8';
+    c.globalAlpha = st.healFlash * 0.55;
+    c.fillStyle = '#eaffdc';
     c.fillRect(bx, by, bw * p, bh);
     c.globalAlpha = 1;
   }
-  // Shield sits on top of the bar from the left, like The Bazaar.
-  if (st.shield > 0) {
-    const sw = bw * Math.min(1, st.shield / st.max);
-    c.fillStyle = 'rgba(244, 214, 92, 0.92)';
-    c.fillRect(bx, by, sw, bh * 0.38);
-    c.fillStyle = 'rgba(255,255,255,0.35)';
-    c.fillRect(bx, by, sw, bh * 0.1);
+  // Shield: a gold layer over the health it protects, from the left.
+  if (st.shieldShown > 0.5) {
+    const sw = bw * Math.min(1, st.shieldShown / st.max);
+    const g = c.createLinearGradient(0, by, 0, by + bh);
+    g.addColorStop(0, '#ffeaa0');
+    g.addColorStop(0.5, '#f4c93e');
+    g.addColorStop(1, '#d9a21f');
+    c.fillStyle = g;
+    c.fillRect(bx, by, sw, bh);
+    c.save();
+    c.beginPath();
+    c.rect(bx, by, sw, bh);
+    c.clip();
+    c.strokeStyle = 'rgba(255,255,255,0.22)';
+    c.lineWidth = 10;
+    for (let x = bx - bh; x < bx + sw + bh; x += 34) {
+      c.beginPath();
+      c.moveTo(x, by + bh);
+      c.lineTo(x + bh, by);
+      c.stroke();
+    }
+    c.restore();
+    c.fillStyle = 'rgba(255,255,255,0.45)';
+    c.fillRect(bx, by + 6, sw, bh * 0.14);
+    c.fillStyle = '#fff5c8';
+    c.fillRect(bx + sw - 5, by, 5, bh);
+    if (st.shieldFlash > 0) {
+      c.globalAlpha = st.shieldFlash * 0.6;
+      c.fillStyle = '#fff';
+      c.fillRect(bx, by, sw, bh);
+      c.globalAlpha = 1;
+    }
   }
   // segment ticks every 50 HP
-  c.fillStyle = 'rgba(0,0,0,0.18)';
-  for (let v = 50; v < st.max; v += 50) c.fillRect(bx + (bw * v) / st.max - 1.5, by + bh * 0.62, 3, bh * 0.38);
+  c.fillStyle = 'rgba(0,0,0,0.22)';
+  for (let v = 50; v < st.max; v += 50) c.fillRect(bx + (bw * v) / st.max - 2, by + bh * 0.6, 4, bh * 0.4);
+  // inner shadow
+  const sh = c.createLinearGradient(0, by, 0, by + bh);
+  sh.addColorStop(0, 'rgba(0,0,0,0.18)');
+  sh.addColorStop(0.15, 'rgba(0,0,0,0)');
+  sh.addColorStop(0.85, 'rgba(0,0,0,0)');
+  sh.addColorStop(1, 'rgba(0,0,0,0.25)');
+  c.fillStyle = sh;
+  c.fillRect(bx, by, bw, bh);
   c.restore();
   // big HP number centred
   const hpText = `${Math.max(0, Math.ceil(st.hp))}`;
   c.textAlign = 'center';
   c.textBaseline = 'middle';
-  c.font = font(86);
+  c.font = font(84);
   c.lineJoin = 'round';
-  c.lineWidth = 14;
-  c.strokeStyle = '#2a241c';
-  c.strokeText(hpText, Wp / 2, Hp / 2 + 4);
+  c.lineWidth = 15;
+  c.strokeStyle = '#231e1a';
+  c.strokeText(hpText, Wp / 2, by + bh / 2 + 4);
   c.fillStyle = '#fff';
-  c.fillText(hpText, Wp / 2, Hp / 2 + 4);
-  // shield number on the left, statuses on the right
-  c.font = font(54);
-  c.lineWidth = 10;
-  if (st.shield > 0) {
-    c.textAlign = 'left';
-    D.glyph(c, 'shield', 64, Hp / 2, 66);
-    c.strokeText(String(st.shield), 104, Hp / 2 + 3);
-    c.fillStyle = '#f6dc6a';
-    c.fillText(String(st.shield), 104, Hp / 2 + 3);
-  }
-  // Burn and poison counters: the number eases down after each tick and the
-  // icon gives a small pulse, like The Bazaar.
-  let x = Wp - 44;
-  c.textAlign = 'right';
-  for (const [k, color] of [['poison', '#c8f0a0'], ['burn', '#ffc890']]) {
-    const shown = Math.round(st.disp[k]);
-    if (!(shown > 0)) continue;
-    const pulse = st.pulse[k];
-    const label = String(shown);
-    c.font = font(54 + pulse * 6);
-    const tw = c.measureText(label).width;
-    c.strokeText(label, x, Hp / 2 + 3);
-    c.fillStyle = pulse > 0.05 ? '#fff' : color;
-    c.fillText(label, x, Hp / 2 + 3);
-    const gx = x - tw - 36;
-    if (pulse > 0.02) {
-      c.save();
-      c.globalAlpha = pulse * 0.45;
-      c.fillStyle = color;
-      c.beginPath();
-      c.arc(gx, Hp / 2, 34 + pulse * 10, 0, Math.PI * 2);
-      c.fill();
-      c.restore();
-    }
-    D.glyph(c, k, gx, Hp / 2 - pulse * 3, 62 * (1 + pulse * 0.22));
-    x -= tw + 110;
-  }
+  c.fillText(hpText, Wp / 2, by + bh / 2 + 4);
+  return cv;
+}
+
+// A status pill: coloured coin with the icon, then the count.
+function drawPill(kind, value, flash) {
+  const { w, h } = PILL_PX;
+  const P = PILL[kind];
+  const cv = D.canvas(w, h);
+  const c = cv.getContext('2d');
+  const r = h / 2 - 6;
+  c.fillStyle = 'rgba(0,0,0,0.35)';
+  D.rrect(c, 6, 12, w - 12, h - 14, (h - 14) / 2);
+  c.fill();
+  c.fillStyle = '#2a2420';
+  D.rrect(c, 6, 6, w - 12, h - 14, (h - 14) / 2);
+  c.fill();
+  c.lineWidth = 6;
+  c.strokeStyle = P.ring;
+  c.globalAlpha = 0.55 + flash * 0.45;
+  c.stroke();
+  c.globalAlpha = 1;
+  // coin
+  const cx = 6 + r;
+  const cy = h / 2 - 1;
+  const g = c.createRadialGradient(cx - r * 0.3, cy - r * 0.35, r * 0.1, cx, cy, r);
+  g.addColorStop(0, flash > 0.05 ? '#ffffff' : P.fill[0]);
+  g.addColorStop(1, P.fill[1]);
+  c.fillStyle = g;
+  c.beginPath();
+  c.arc(cx, cy, r, 0, Math.PI * 2);
+  c.fill();
+  c.lineWidth = 7;
+  c.strokeStyle = '#2a2420';
+  c.stroke();
+  c.fillStyle = 'rgba(255,253,246,0.92)';
+  c.beginPath();
+  c.arc(cx, cy, r * 0.66, 0, Math.PI * 2);
+  c.fill();
+  D.glyph(c, kind, cx, cy, r * 1.15);
+  // count
+  const label = String(value);
+  c.textAlign = 'left';
+  c.textBaseline = 'middle';
+  let size = 92;
+  c.font = font(size);
+  const room = w - (cx + r + 14) - 22;
+  while (c.measureText(label).width > room && size > 50) { size -= 6; c.font = font(size); }
+  c.lineJoin = 'round';
+  c.lineWidth = 12;
+  c.strokeStyle = '#1a1512';
+  const tx = cx + r + 14;
+  c.strokeText(label, tx, cy + 5);
+  c.fillStyle = flash > 0.05 ? '#ffffff' : P.text;
+  c.fillText(label, tx, cy + 5);
   return cv;
 }
 
@@ -184,64 +254,118 @@ export function createFortressHud(scene, { x, z }) {
   buffs.renderOrder = 6;
   g.add(buffs);
   let buffKey = null;
+  // Floating numbers lean away from the board so they never cover the wall.
+  const top = z < 0;
+  const lift = top ? { y: 1.4, z: -0.7, py: 1.1, pz: -0.85 } : { y: 0.5, z: 1.15, py: 0.45, pz: 1.0 };
 
-  const st = { hp: 0, max: 1, lag: 0, shield: 0, burn: 0, poison: 0, flash: 0, healFlash: 0, disp: { burn: 0, poison: 0 }, pulse: { burn: 0, poison: 0 } };
+  const st = { hp: 0, max: 1, lag: 0, shield: 0, shieldShown: 0, flash: 0, healFlash: 0, shieldFlash: 0 };
   let dirty = true;
   let redraw = 0;
   let kick = 0;
   const counters = {};
   const floaters = [];
 
-  function sprite(kind, value) {
-    const k = KIND[kind];
-    const cv = D.drawNumber(`${k.sign}${value}`, k.color, 96, k.icon);
+  // Pills: one per status, drawn on the bar and animated as meshes.
+  const pills = {};
+  for (const kind of ['shield', 'burn', 'poison']) {
+    const mat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(PILL_W, PILL_H), mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.y = 0.02;
+    mesh.renderOrder = 7;
+    mesh.visible = false;
+    g.add(mesh);
+    pills[kind] = { kind, mesh, mat, value: 0, disp: 0, shown: null, flash: 0, pop: 0, pulse: 0, shake: 0, s: 0, x: kind === 'shield' ? PILL_X.shield : PILL_X.first };
+  }
+
+  function sprite(text, color, icon, size = 96) {
+    const cv = D.drawNumber(text, color, size, icon);
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: canvasTexture(cv), transparent: true, depthTest: false, depthWrite: false }));
     sp.renderOrder = 30;
     sp.userData.aspect = cv.width / cv.height;
     return sp;
   }
 
+  // Small number that drifts up off a pill: a burn or poison tick, shield gained or lost.
+  function pillFloat(kind, text) {
+    const P = pills[kind];
+    const sp = sprite(text, PILL[kind].text, null, 80);
+    sp.position.set(P.x + PILL_W * 0.15 + (Math.random() - 0.5) * 0.5, lift.py, lift.pz + (Math.random() - 0.5) * 0.2);
+    g.add(sp);
+    floaters.push({ sprite: sp, age: 0, life: 1.0, rise: top ? 1.2 : 0.5, size: 0.7, pop: 1 });
+  }
+
+  function clearSprites() {
+    for (const c of Object.values(counters)) { g.remove(c.sprite); c.sprite.material.map.dispose(); c.sprite.material.dispose(); }
+    for (const k of Object.keys(counters)) delete counters[k];
+    for (const f of floaters.splice(0)) { g.remove(f.sprite); f.sprite.material.map.dispose(); f.sprite.material.dispose(); }
+  }
+
   return {
     // Where projectiles should land: the middle of the bar.
     target: () => new THREE.Vector3(x, 0.6, z),
     reset(maxHp) {
-      Object.assign(st, { hp: maxHp, max: maxHp, lag: maxHp, shield: 0, burn: 0, poison: 0, flash: 0, healFlash: 0, disp: { burn: 0, poison: 0 }, pulse: { burn: 0, poison: 0 } });
-      for (const c of Object.values(counters)) g.remove(c.sprite);
-      for (const k of Object.keys(counters)) delete counters[k];
-      for (const f of floaters.splice(0)) g.remove(f.sprite);
+      Object.assign(st, { hp: maxHp, max: maxHp, lag: maxHp, shield: 0, shieldShown: 0, flash: 0, healFlash: 0, shieldFlash: 0 });
+      clearSprites();
+      for (const P of Object.values(pills)) Object.assign(P, { value: 0, disp: 0, shown: null, flash: 0, pop: 0, pulse: 0, shake: 0, s: 0 });
       dirty = true;
       buffKey = null;
       g.visible = true;
     },
     hide() { g.visible = false; },
-    // A burn or poison tick: pulse that counter.
-    tick(kind) {
-      if (st.pulse[kind] != null) { st.pulse[kind] = 1; dirty = true; }
+    // A burn or poison tick: the pill thumps and the damage drifts off it.
+    tick(kind, amount) {
+      const P = pills[kind];
+      if (!P) return;
+      P.pulse = 1;
+      P.flash = 1;
+      if (amount > 0) pillFloat(kind, `-${amount}`);
     },
     add(kind, n) {
-      if (!(n > 0) || !KIND[kind]) return;
+      if (!(n > 0)) return;
+      n = Math.round(n);
+      if (kind === 'blocked') {
+        pills.shield.shake = 1;
+        pills.shield.flash = 1;
+        st.shieldFlash = 1;
+        pillFloat('shield', `-${n}`);
+        kick = Math.min(1, kick + 0.15);
+        return;
+      }
+      if (kind === 'shield') {
+        pills.shield.pop = 1;
+        st.shieldFlash = 0.7;
+        pillFloat('shield', `+${n}`);
+        return;
+      }
+      if (kind === 'burn' || kind === 'poison') {
+        // Tick damage is shown off the pill by tick(); just shake the bar.
+        st.flash = 0.18;
+        kick = Math.min(1, kick + 0.12);
+        return;
+      }
+      const K = KIND[kind];
+      if (!K) return;
       let c = counters[kind];
       if (!c) {
-        c = { value: 0, idle: 0, pop: 0 };
-        c.sprite = sprite(kind, n);
-        const [lx, lz] = LANES[kind];
-        c.sprite.position.set(lx, 1.0, lz);
+        c = { value: 0, idle: 0, pop: 0, age: 0 };
+        c.sprite = sprite('0', K.color, K.icon);
+        c.sprite.position.set(LANES[kind], lift.y, lift.z);
         g.add(c.sprite);
         counters[kind] = c;
       }
-      c.value += Math.round(n);
+      c.value += n;
       c.idle = 0;
       c.pop = 1;
-      const k = KIND[kind];
-      const cv = D.drawNumber(`${k.sign}${c.value}`, k.color, 96, k.icon);
+      const cv = D.drawNumber(`${K.sign}${c.value}`, K.color, 96, K.icon);
       c.sprite.material.map.dispose();
       c.sprite.material.map = canvasTexture(cv);
       c.sprite.userData.aspect = cv.width / cv.height;
-      if (kind === 'hit' || kind === 'burn' || kind === 'poison' || kind === 'sudden') { st.flash = 0.2; kick = Math.min(1, kick + 0.3 + n / 30); }
       if (kind === 'heal') st.healFlash = 0.8;
+      else { st.flash = 0.22; kick = Math.min(1, kick + 0.3 + n / 30); }
     },
     set(S) {
-      if (S.hp !== st.hp || S.shield !== st.shield || S.burn !== st.burn || S.poison !== st.poison) dirty = true;
+      if (S.hp !== st.hp || S.shield !== st.shield) dirty = true;
       const key = `${S.luck}|${S.sand}|${S.heat}|${S.cold}`;
       if (key !== buffKey) {
         buffKey = key;
@@ -252,26 +376,67 @@ export function createFortressHud(scene, { x, z }) {
       }
       st.hp = S.hp;
       st.shield = S.shield;
-      st.burn = S.burn;
-      st.poison = S.poison;
+      for (const k of ['shield', 'burn', 'poison']) {
+        const P = pills[k];
+        if (S[k] > P.value && P.value > 0 && k !== 'shield') P.pop = Math.max(P.pop, 0.7);
+        P.value = S[k];
+      }
     },
     update(dt) {
-      if (st.lag > st.hp) { st.lag = Math.max(st.hp, st.lag - Math.max(6, (st.lag - st.hp) * 2.2) * dt); dirty = true; }
-      else st.lag = st.hp;
+      if (st.lag > st.hp) {
+        st.lag = Math.max(st.hp, st.lag - Math.max(8, (st.lag - st.hp) * 2.2) * dt);
+        dirty = true;
+      } else st.lag = st.hp;
       if (st.flash > 0) { st.flash -= dt; dirty = true; }
       if (st.healFlash > 0) { st.healFlash = Math.max(0, st.healFlash - dt * 1.5); dirty = true; }
-      for (const k of ['burn', 'poison']) {
-        const target = st[k];
-        const d = st.disp[k];
-        if (Math.abs(target - d) > 0.01) {
-          // new stacks pop in quickly; losses count down a little slower so you see them go
-          const rate = target > d ? 14 : 5;
-          st.disp[k] = d + (target - d) * Math.min(1, dt * rate);
-          if (Math.abs(target - st.disp[k]) < 0.05) st.disp[k] = target;
-          dirty = true;
+      if (st.shieldFlash > 0) { st.shieldFlash = Math.max(0, st.shieldFlash - dt * 3); dirty = true; }
+      if (Math.abs(st.shieldShown - st.shield) > 0.05) {
+        st.shieldShown += (st.shield - st.shieldShown) * Math.min(1, dt * 12);
+        dirty = true;
+      } else st.shieldShown = st.shield;
+
+      // pills: ease the count, pop in/out, thump on ticks
+      let slot = 0;
+      for (const kind of ['shield', 'burn', 'poison']) {
+        const P = pills[kind];
+        const d = P.disp;
+        if (Math.abs(P.value - d) > 0.01) {
+          // gains land fast; losses count down so you watch them go
+          const rate = P.value > d ? 16 : 6;
+          P.disp = d + (P.value - d) * Math.min(1, dt * rate);
+          if (Math.abs(P.value - P.disp) < 0.05) P.disp = P.value;
         }
-        if (st.pulse[k] > 0) { st.pulse[k] = Math.max(0, st.pulse[k] - dt * 2.8); dirty = true; }
+        const live = P.value > 0 || P.disp >= 0.5;
+        const want = live ? 1 : 0;
+        P.s += (want - P.s) * Math.min(1, dt * (want ? 14 : 10));
+        if (P.s < 0.01 && !live) { P.mesh.visible = false; P.s = 0; continue; }
+        P.mesh.visible = true;
+        if (kind !== 'shield') {
+          const tx = slot === 0 ? PILL_X.first : PILL_X.second;
+          P.x += (tx - P.x) * Math.min(1, dt * 12);
+          if (live) slot += 1;
+        }
+        P.pulse = Math.max(0, P.pulse - dt * 3.2);
+        P.pop = Math.max(0, P.pop - dt * 4);
+        P.shake = Math.max(0, P.shake - dt * 4);
+        P.flash = Math.max(0, P.flash - dt * 4);
+        const shown = Math.max(0, Math.round(P.disp));
+        const fl = P.flash > 0.05 ? 1 : 0;
+        const key = `${shown}|${fl}`;
+        if (key !== P.shown && (shown > 0 || P.shown == null)) {
+          P.shown = key;
+          P.mat.map?.dispose();
+          P.mat.map = canvasTexture(drawPill(kind, shown, fl));
+          P.mat.needsUpdate = true;
+        }
+        // back-out bounce for the pop-in, a squash-and-swell thump for ticks
+        const thump = Math.sin(P.pulse * Math.PI) * 0.22 * P.pulse;
+        const sc = P.s * (1 + thump + P.pop * 0.18);
+        P.mesh.scale.set(sc, sc, 1);
+        P.mesh.position.x = P.x + (P.shake > 0.02 ? Math.sin(P.shake * 40) * P.shake * 0.12 : 0);
+        P.mesh.position.z = -thump * 0.25;
       }
+
       redraw -= dt;
       if (dirty && redraw <= 0) {
         barMat.map?.dispose();
@@ -281,22 +446,30 @@ export function createFortressHud(scene, { x, z }) {
         redraw = 0.033;
       }
       kick = Math.max(0, kick - dt * 3);
-      const s = 1 + kick * 0.04;
+      const s = 1 + kick * 0.03;
       bar.scale.set(s, s, 1);
-      bar.position.x = kick > 0.05 ? (Math.random() - 0.5) * kick * 0.12 : 0;
+      bar.position.x = kick > 0.05 ? (Math.random() - 0.5) * kick * 0.1 : 0;
+
+      // running totals above the bar: pop on each add, drift away when quiet
       for (const [kind, c] of Object.entries(counters)) {
         c.idle += dt;
-        c.pop = Math.max(0, c.pop - dt * 5);
-        const sc = 1.0 + Math.min(0.6, c.value / 60) + c.pop * 0.3;
+        c.age += dt;
+        c.pop = Math.max(0, c.pop - dt * 6);
+        const born = Math.min(1, c.age / 0.12);
+        const sc = (1.0 + Math.min(0.3, c.value / 100)) * (0.6 + 0.4 * born) * (1 + Math.sin(c.pop * Math.PI) * 0.35);
         c.sprite.scale.set(sc * c.sprite.userData.aspect, sc, 1);
-        if (c.idle > 1.1) { floaters.push({ sprite: c.sprite, age: 0 }); delete counters[kind]; }
+        // a burst ends after a pause, or after a while so it never piles up forever
+        if (c.idle > 1.0 || c.age > 1.8) { floaters.push({ sprite: c.sprite, age: 0, life: 0.6, rise: top ? 1.3 : 0.5, size: sc, pop: 0 }); delete counters[kind]; }
       }
       for (let i = floaters.length - 1; i >= 0; i--) {
         const f = floaters[i];
         f.age += dt;
-        f.sprite.position.y += dt * 1.2;
-        f.sprite.material.opacity = Math.max(0, 1 - f.age / 0.7);
-        if (f.age > 0.7) {
+        const u = f.age / f.life;
+        f.sprite.position.y += dt * f.rise * (1 - u * 0.6);
+        const sc = f.size * (1 + Math.max(0, 0.35 - f.age * 3) * f.pop);
+        f.sprite.scale.set(sc * f.sprite.userData.aspect, sc, 1);
+        f.sprite.material.opacity = u < 0.6 ? 1 : Math.max(0, 1 - (u - 0.6) / 0.4);
+        if (u >= 1) {
           g.remove(f.sprite);
           f.sprite.material.map.dispose();
           f.sprite.material.dispose();

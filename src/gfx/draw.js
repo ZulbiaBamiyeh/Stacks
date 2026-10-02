@@ -1,6 +1,6 @@
 // Everything drawn with canvas 2D: card faces, packs, icons, shop tiles and
 // the hand-drawn board/forest textures. Ink-on-paper, Stacklands-adjacent.
-import { CARDS, PACKS } from '../content.js';
+import { CARDS, PACKS, SPECIAL_STATS } from '../content.js';
 import { createRng } from '../rng.js';
 
 export const INK = '#2a241c';
@@ -396,6 +396,15 @@ export function cardStats(def, perm = 0, live = null) {
     for (const a0 of acts) {
       const list = a0.k === 'alt' ? a0.list : [a0];
       for (const a of list) {
+        if (a.k === 'special' && SPECIAL_STATS[a.fx]) {
+          for (const sp of SPECIAL_STATS[a.fx](a)) {
+            if (seen.has(sp.k)) continue;
+            seen.add(sp.k);
+            if (live && live[sp.k] != null) stats.push({ k: sp.k, n: live[sp.k], delta: typeof sp.n === 'number' ? Math.sign(live[sp.k] - sp.n) : 0 });
+            else stats.push({ ...sp });
+          }
+          continue;
+        }
         if (!NUMERIC.includes(a.k) || seen.has(a.k)) continue;
         seen.add(a.k);
         let n = a.k === 'freeze' ? `${a.dur}s` : a.n + (a.k === def.main ? perm : 0);

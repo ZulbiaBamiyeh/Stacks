@@ -16,6 +16,22 @@ export const bless = (n, o = {}) => ({ k: 'bless', n, ...o });
 export const summon = (id, max) => ({ k: 'summon', id, max });
 export const charge = (target, s) => ({ k: 'charge', target, s });
 export const special = (fx, o = {}) => ({ k: 'special', fx, ...o });
+// What a special action shows on the card face: [{ k, n }]. A trailing '+' or
+// '*' marks a number that depends on the fight.
+export const SPECIAL_STATS = {
+  pay: (a) => [{ k: 'dmg', n: a.dmg }],
+  pack: (a) => [{ k: 'dmg', n: `${a.n}+` }],
+  detonate: () => [{ k: 'dmg', n: '*' }],
+  sandworm: () => [{ k: 'dmg', n: '*' }],
+  furnace: () => [{ k: 'dmg', n: 30 }],
+  myco: () => [{ k: 'heal', n: '*' }],
+  bark: (a) => [{ k: 'shield', n: `${a.n}+` }],
+  glass: () => [{ k: 'shield', n: 12 }],
+  wisp: () => [{ k: 'burn', n: '2+' }, { k: 'freeze', n: '1.5s' }],
+  selfPoison: (a) => [{ k: 'poison', n: a.n }],
+  well: () => [{ k: 'bless', n: 4 }],
+  convert: (a) => [{ k: 'poison', n: a.give }],
+};
 export const alt = (...list) => ({ k: 'alt', list });
 export const delay = (target, s) => ({ k: 'delay', target, s });
 

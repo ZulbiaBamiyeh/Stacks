@@ -593,6 +593,20 @@ export function createBattle({ left, right, seed = 1 }) {
 
   // Current value of each number a unit shows on its card (first action of each kind).
   const LIVE = ['dmg', 'heal', 'shield', 'burn', 'poison', 'sand', 'heat', 'luck', 'bless'];
+  // Live numbers for special actions that have one.
+  function liveSpecial(u, a, S, E) {
+    const extra = u.bonus + u.perm + (u.selfBonus || 0);
+    switch (a.fx) {
+      case 'pay': return { dmg: num(u, { k: 'dmg', n: a.dmg }, 1, true) };
+      case 'pack': return { dmg: Math.min(a.max, alive(S).filter((v) => v.def.kin === 'wolf').length) * a.n + u.bonus + u.perm };
+      case 'detonate': return { dmg: E[a.kind] };
+      case 'sandworm': return { dmg: Math.min(E.sand, a.max || Infinity) * a.per };
+      case 'myco': return { heal: Math.floor(E.poison / 2) + u.bonus + u.perm };
+      case 'bark': return { shield: a.n + Math.floor((S.maxHp - S.hp) * a.frac) + extra };
+      default: return {};
+    }
+  }
+
   b.liveStats = function liveStats(u) {
     const S = sides[u.side];
     const E = sides[1 - u.side];
@@ -600,6 +614,11 @@ export function createBattle({ left, right, seed = 1 }) {
     for (const t of u.timers) {
       for (const a0 of t.acts) {
         const a = a0.k === 'alt' ? a0.list[u.altIdx % a0.list.length] : a0;
+        if (a.k === 'special') {
+          const sp = liveSpecial(u, a, S, E);
+          for (const k in sp) if (out[k] == null) out[k] = sp[k];
+          continue;
+        }
         if (!LIVE.includes(a.k) || out[a.k] != null) continue;
         let n = num(u, a, 1, true);
         if (a.k === 'dmg') {
