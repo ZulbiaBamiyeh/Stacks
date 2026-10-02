@@ -512,9 +512,9 @@ const RECIPE_LIST = [
 // ---------------------------------------------------------------- packs & tracks
 
 export const PACKS = {
-  village: { id: 'village', name: 'Village Pack', price: 3, size: 3, pool: [['villager', 3], ['wood', 2], ['stone', 2], ['berry', 2], ['coin', 2]] },
-  wild: { id: 'wild', name: 'Wild Pack', price: 3, size: 3, pool: [['wolf', 3], ['fairy', 3], ['berry', 1], ['wood', 1], ['feather', 2], ['crystal', 1], ['ice', 2]] },
-  desert: { id: 'desert', name: 'Desert Pack', price: 3, size: 3, pool: [['scorpion', 3], ['bone', 2], ['ember', 2], ['mushroom', 2], ['sand', 2], ['moonstone', 1]] },
+  village: { id: 'village', name: 'Village Pack', price: 3, size: 3, pool: [['villager', 3], ['relayRunner', 1], ['duelist', 1], ['hermit', 1], ['wood', 2], ['stone', 2], ['berry', 2], ['coin', 2]] },
+  wild: { id: 'wild', name: 'Wild Pack', price: 3, size: 3, pool: [['wolf', 3], ['fairy', 3], ['packrat', 1], ['parrot', 1], ['luckyCat', 1], ['berry', 1], ['wood', 1], ['feather', 2], ['crystal', 1], ['ice', 2]] },
+  desert: { id: 'desert', name: 'Desert Pack', price: 3, size: 3, pool: [['scorpion', 3], ['hourglass', 1], ['boiler', 1], ['bone', 2], ['ember', 2], ['mushroom', 2], ['sand', 2], ['moonstone', 1]] },
   flame: { id: 'flame', name: 'Flame Pack', price: 4, size: 3, track: 'flame', pool: [['flameImp', 3], ['salamander', 3], ['ember', 2]] },
   inferno: { id: 'inferno', name: 'Inferno Pack', price: 5, size: 3, track: 'flame', rare: 'ifrit', pool: [['cinderMaw', 3], ['ashMoth', 3], ['ember', 1], ['wood', 1]] },
   tomb: { id: 'tomb', name: 'Tomb Pack', price: 4, size: 3, track: 'tomb', pool: [['ghoul', 3], ['mummy', 3], ['bone', 2]] },
@@ -529,7 +529,9 @@ export const PACKS = {
   frost: { id: 'frost', name: 'Frost Pack', price: 4, size: 3, track: 'frost', pool: [['snowSprite', 3], ['iceImp', 3], ['frostling', 2], ['ice', 2]] },
   glacier: { id: 'glacier', name: 'Glacier Pack', price: 5, size: 3, track: 'frost', rare: 'hoarfrostDragon', pool: [['penguin', 3], ['yetiCub', 3], ['ice', 1], ['crystal', 1]] },
 };
-export const BASE_PACKS = ['village', 'wild', 'desert', 'curio'];
+// The Curio Pack is retired: its starters now live in the three base packs
+// (its definition stays so packs bought in older saves still open).
+export const BASE_PACKS = ['village', 'wild', 'desert'];
 
 export const TRACKS = [
   { id: 'flame', name: 'Flame', feed: 'ember', packs: ['flame', 'inferno'] },
