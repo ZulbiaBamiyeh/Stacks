@@ -284,6 +284,8 @@ button {
   box-shadow: 0 4px 0 rgba(0, 0, 0, 0.2);
 }
 .fort.enemy { top: 62px; }
+/* The in-world health bars carry this now. */
+.fort { display: none; }
 .fort.player { bottom: 14px; }
 .fort .who { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.55; font-weight: 900; }
 .fort .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 900; font-size: 15px; }

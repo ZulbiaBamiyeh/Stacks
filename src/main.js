@@ -6,7 +6,7 @@ import { createBattle, DT } from './sim.js';
 import { fetchGhost, submitGhost } from './ghosts.js';
 import { createWorld, L, CARD, wallX, arenaX } from './gfx/world.js';
 import { CardView, loadArt, setAnisotropy } from './gfx/card.js';
-import { createFx, createFortressFx } from './gfx/fx.js';
+import { createFx } from './gfx/fx.js';
 import { createFortressHud } from './gfx/fortress.js';
 import * as D from './gfx/draw.js';
 import { createUI, loadCodex, saveCodex } from './ui.js';
@@ -805,12 +805,15 @@ let acc = 0;
 let result = null;
 const auraClock = [0, 0];
 let lastBreakdown = null;
-const fortFx = { 0: createFortressFx(scene, world.towers.player), 1: createFortressFx(scene, world.towers.enemy) };
+// Shield now shows on the health bar, so the old tower domes are off.
+const noFx = { hit() {}, set() {}, update() {}, reset() {} };
+const fortFx = { 0: noFx, 1: noFx };
 
-const fortHud = { 0: createFortressHud(scene, world.towers.player), 1: createFortressHud(scene, world.towers.enemy) };
+const fortHud = { 0: createFortressHud(scene, { x: 0, z: A.playerTowerZ }), 1: createFortressHud(scene, { x: 0, z: A.enemyTowerZ }) };
 fortHud[0].hide();
 fortHud[1].hide();
-const towerPos = (side) => (side === 0 ? world.towers.player : world.towers.enemy).position.clone().setY(1.7);
+// Hits fly at the health bar, Bazaar style.
+const towerPos = (side) => fortHud[side].target();
 const unitPos = (ref) => {
   const v = ref && bv[ref.side][ref.slot];
   return v ? v.pos.clone().setY(0.35) : towerPos(ref ? ref.side : 0);

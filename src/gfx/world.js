@@ -200,8 +200,9 @@ export function createWorld(container) {
   }
 
   const homeTower = makeTower(L.tower.x, L.tower.z, '#d06a5a', '#f2c64a');
-  const arenaPlayerTower = makeTower(0, A.playerTowerZ, '#d06a5a', '#f2c64a');
-  const arenaEnemyTower = makeTower(0, A.enemyTowerZ, '#6f6ba6', '#e9e3d0');
+  // Arena towers stand beside each wall; the health bars take the space behind the walls.
+  const arenaPlayerTower = makeTower(-7.7, A.playerZ, '#d06a5a', '#f2c64a');
+  const arenaEnemyTower = makeTower(-7.7, A.enemyZ, '#6f6ba6', '#e9e3d0');
   arenaPlayerTower.scale.setScalar(0.9);
   arenaEnemyTower.scale.setScalar(0.9);
 
