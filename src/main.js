@@ -466,7 +466,7 @@ function dropHint(d, v) {
     const grow = (meals + 1) % per === 0 ? `Feed: +1 ${stat}` : `Feed: +1 ${stat} next meal`;
     return [e.next ? `${grow} · ${e.left - 1 <= 0 ? `evolves into <b>${ui.esc(CARDS[e.into].name)}</b>!` : `${e.left - 1} more to evolve`}` : grow, false];
   }
-  if (d.kind === 'sell') return [`Sell for ${ui.ico('coin')} ${v.inst ? R.sellPrice(S, v.inst) : 0}`, false];
+  if (d.kind === 'sell') return [`Sell for ${ui.ico('coin')} ${v.inst ? R.sellPrice(S, v.inst) : 0}${R.bonusSalesLeft(S) < RULES.sellBonusPerDay ? ` · bonus sales left ${R.bonusSalesLeft(S)}` : ''}`, false];
   if (d.kind === 'feed') {
     const t = R.feedTrack(v.id);
     if (!t) return ['The shrine wants Ember, Bone, Berry, Coin, Stone or Ice', true];

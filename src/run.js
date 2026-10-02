@@ -2,7 +2,7 @@
 // Pure data in, data out (no DOM) so it can be saved and tested.
 import {
   CARDS, PACKS, BASE_PACKS, TRACKS, TRACK_STEPS, TRACK_RARE_CHANCE, RULES, INGREDIENTS,
-  BASE_UNITS, recipeFor, sellValue, fortressHp, wallSlots, eats, combineCost, starCost,
+  BASE_UNITS, recipeFor, sellValue, fortressHp, wallSlots, eats, combineCost, starCost, starMult,
 } from './content.js';
 import { createRng, randomSeed } from './rng.js';
 import { TRINKETS, TK_BY, RACK_SLOTS, MAX_STACK, FORGE_COST, aggregate, trinketSellValue } from './trinkets.js';
@@ -27,6 +27,7 @@ export function newRun(seed = randomSeed()) {
     shop: [],
     fed: Object.fromEntries(TRACKS.map((t) => [t.id, 0])),
     oracleUsed: false,
+    bonusSales: 0,
     discovered: [],
     history: [],
   };
@@ -101,6 +102,15 @@ export function rollShop(s) {
   const pool = [];
   for (const id of BASE_UNITS) pool.push([id, 2]);
   for (const ing of INGREDIENTS) if (ing.day <= s.day) pool.push([ing.id, 1]);
+  // Once the shrine is bound, the shop leans toward that land: its resource
+  // turns up often, and so do the units from its open packs.
+  const track = s.bound && TRACKS.find((t) => t.id === s.bound);
+  if (track) {
+    pool.push([track.feed, 5]);
+    for (const packId of availablePacks(s).filter((id) => track.packs.includes(id))) {
+      for (const [id] of PACKS[packId].pool) if (CARDS[id].kind === 'unit' && !pool.some(([x]) => x === id)) pool.push([id, 3]);
+    }
+  }
   const n = RULES.shopSlots + ownedSum(s, 'shopSlot');
   s.shop = Array.from({ length: n }, () => {
     const id = r.weighted(pool);
@@ -158,17 +168,30 @@ export function openOne(s, packUid) {
 export const trinketMods = (s) => aggregate((s.trinkets || []).filter(Boolean).map((t) => t.id));
 export const stackOf = (inst) => inst.stack || 1;
 
+// Traders and sell trinkets add gold to only the first few sales each day.
+export const bonusSalesLeft = (s) => Math.max(0, RULES.sellBonusPerDay - (s.bonusSales || 0));
+
+function sellParts(s, inst) {
+  const def = CARDS[inst.id];
+  const base = sellValue(def, inst) * stackOf(inst);
+  const per = ownedCount(s, 'sellBonus') - (def.sellBonus ? 1 : 0) + (trinketMods(s).sellBonus || 0);
+  const n = per > 0 ? Math.min(stackOf(inst), bonusSalesLeft(s)) : 0;
+  return { base, bonus: per * n, n };
+}
+
 export function sellPrice(s, inst) {
-  return sellValue(CARDS[inst.id], inst, ownedCount(s, 'sellBonus') - (CARDS[inst.id].sellBonus ? 1 : 0)) * stackOf(inst) + (trinketMods(s).sellBonus || 0);
+  const { base, bonus } = sellParts(s, inst);
+  return base + bonus;
 }
 
 export function sell(s, uid) {
   const f = find(s, uid);
   if (!f) return { ok: false };
-  const price = sellPrice(s, f.inst);
+  const { base, bonus, n } = sellParts(s, f.inst);
   remove(s, uid);
-  s.gold += price;
-  return { ok: true, price };
+  s.gold += base + bonus;
+  if (bonus) s.bonusSales = (s.bonusSales || 0) + n;
+  return { ok: true, price: base + bonus };
 }
 
 export function feedTrack(id) {
@@ -452,7 +475,7 @@ export function finishFight(s, won, opponentName) {
   if (won) lines.push(['Victory bonus', RULES.winGold]);
   for (const c of owned(s)) {
     const d = CARDS[c.id];
-    if (d.gold) lines.push([d.name, d.gold]);
+    if (d.gold) lines.push([d.name, Math.round(d.gold * starMult(d, c.stars))]);
     if (d.banker) {
       const g = Math.min(4, Math.floor(s.gold / 5));
       if (g) lines.push([d.name, g]);
@@ -466,6 +489,7 @@ export function finishFight(s, won, opponentName) {
   if (!over) {
     s.day += 1;
     s.oracleUsed = false;
+    s.bonusSales = 0;
     rollShop(s);
   }
   return { won, lines, total, over };

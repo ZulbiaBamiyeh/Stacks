@@ -236,14 +236,14 @@ U('bloomVine', 'Bloom Vine', 2, 'fairy', '2 heal every 2s. Neighbours act 15% fa
 
 // Caravan
 U('camel', 'Camel', 1, 'wolf', 'No attack. +1 shop slot', { ...TRACK, shopSlot: 1, tags: CREATURE });
-U('trader', 'Trader', 1, 'person', '2 damage every 2s. Selling a card gives +1 gold', { ...TRACK, t: [[2, dmg(2)]], sellBonus: 1 });
-U('treasureChest', 'Treasure Chest', 1, 'thing', 'No attack. Sells for 3 gold plus 1 per day owned (max 10)', { ...TRACK, chest: true });
+U('trader', 'Trader', 1, 'person', '2 damage every 2s. Selling a card gives +1 gold (3 sales a day)', { ...TRACK, t: [[2, dmg(2)]], sellBonus: 1 });
+U('treasureChest', 'Treasure Chest', 1, 'thing', 'No attack. Sells for 3 gold plus 1 per day owned (max 10, +5 per star)', { ...TRACK, chest: true });
 U('goldbug', 'Goldbug', 1, 'scorpion', '1 damage every 1.5s, +1 per meal eaten. Eats Coin. Evolves after 5 meals', { ...TRACK, t: [[1.5, dmg(1)]], eats: { foods: GOLD_FOOD, evolve: [5, 'gildedBeetle'] }, tags: CREATURE });
 U('gildedBeetle', 'Gilded Beetle', 3, 'scorpion', '1 damage every 1.1s, +1 per meal eaten. Eats Coin. Evolves after 12 meals', { ...TRACK, t: [[1.1, dmg(1)]], eats: { foods: GOLD_FOOD, evolve: [12, 'midasScarab'] }, tags: CREATURE });
 U('midasScarab', 'Midas Scarab', 4, 'scorpion', '1 damage every 0.9s, +1 per meal eaten. +2 gold per day. Still eats Coin', { ...TRACK, t: [[0.9, dmg(1)]], eats: { foods: GOLD_FOOD }, gold: 2, tags: CREATURE });
 U('goldGolem', 'Gold Golem', 2, 'golem', 'Every 2.5s, deals 3 damage plus 1 per 4 gold held', { ...TRACK, t: [[2.5, dmg(3, { perGold: 4 })]] });
 U('caravanGuard', 'Caravan Guard', 2, 'wolf', '6 shield every 2.5s. +1 shop slot', { ...TRACK, t: [[2.5, shield(6)]], shopSlot: 1, tags: CREATURE });
-U('spiceTrader', 'Spice Trader', 2, 'person', '2 damage and 2 burn every 2s. Selling a card gives +1 gold', { ...TRACK, t: [[2, dmg(2), burn(2)]], sellBonus: 1 });
+U('spiceTrader', 'Spice Trader', 2, 'person', '2 damage and 2 burn every 2s. Selling a card gives +1 gold (3 sales a day)', { ...TRACK, t: [[2, dmg(2), burn(2)]], sellBonus: 1 });
 U('mimic', 'Mimic', 2, 'thing', 'Every 3s, deals 2 damage plus 1 per day owned (max +8)', { ...TRACK, t: [[3, dmg(2, { perOwned: 8 })]] });
 
 // Forge
@@ -573,6 +573,8 @@ export const RULES = {
   // after each fight: +1 gold per interestPer held, up to interestMax
   interestPer: 10,
   interestMax: 3,
+  // sales per day that get the Trader / trinket sell bonus
+  sellBonusPerDay: 3,
   dayGold: 5,
   winGold: 2,
   winsToFinish: 10,
@@ -668,7 +670,8 @@ export function combineCost(resultId) {
 }
 
 export function sellValue(def, inst, ownedTrader = 0) {
-  if (def.chest) return Math.min(10, 3 + (inst?.owned || 0)) + ownedTrader;
+  // stars raise a chest's cap: 10 / 15 / 20 / 25
+  if (def.chest) return Math.min(10 + 5 * (inst?.stars || 0), 3 + (inst?.owned || 0)) + ownedTrader;
   if (def.rare) return 4 + ownedTrader;
   return Math.max(1, def.tier) + ownedTrader;
 }

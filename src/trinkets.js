@@ -87,7 +87,7 @@ T('wildfireTorch', 'ember', 5, 'Wildfire Torch', 'Your burn actions apply +1. Yo
 // ---------------------------------------------------------------- coin: gold, crits
 T('luckyPenny', 'coin', 2, 'Lucky Penny', 'Start each fight with 6 Luck.', { start: { luck: 6 } });
 T('coinPurse', 'coin', 2, 'Coin Purse', '+1 gold after each fight.', { gold: 1 });
-T('merchantsScale', 'coin', 2, "Merchant's Scale", 'Cards sell for +1 gold.', { sellBonus: 1 });
+T('merchantsScale', 'coin', 2, "Merchant's Scale", 'Cards sell for +1 gold (first 3 sales a day).', { sellBonus: 1 });
 T('gildedRing', 'coin', 3, 'Gilded Ring', '+2 gold after each fight.', { gold: 2 });
 T('bribePurse', 'coin', 3, 'Bribe Purse', "Enemy units start each fight with their cooldowns pushed back 0.6s.", { startDelay: 0.6 });
 T('moneybagAmulet', 'coin', 3, 'Moneybag Amulet', 'Your attacks deal +1 damage per 8 gold you hold (max +3).', { dmgPerGold: 8, dmgPerGoldMax: 3 });

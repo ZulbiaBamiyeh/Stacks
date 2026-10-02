@@ -125,3 +125,39 @@ test('merging copies of a unit adds stars (max 3) and multiplies its numbers', (
   const mk = (stars) => createBattle({ left: side(['archer'], [], { wall: [{ id: 'archer', stars }], slots: 1 }), right: side(['villager']), seed: 1 });
   assert.ok(mk(3).liveStats(mk(3).sides[0].units[0]).dmg > mk(0).liveStats(mk(0).sides[0].units[0]).dmg * 2.5);
 });
+
+test('trader sell bonus only counts for 3 sales a day', () => {
+  const s = run.newRun(6);
+  s.table = []; s.wall = s.wall.map(() => null);
+  s.wall[0] = run.makeInst(s, 'trader');
+  s.wall[1] = run.makeInst(s, 'trader');
+  const sellOne = () => { const c = run.makeInst(s, 'wood'); s.table.push(c); return run.sell(s, c.uid).price; };
+  assert.deepEqual([sellOne(), sellOne(), sellOne(), sellOne(), sellOne()], [3, 3, 3, 1, 1]);
+  run.finishFight(s, true, 'x');
+  assert.equal(sellOne(), 3);
+});
+
+test("stars multiply gold-scaled hits like Dragon's Hoard", () => {
+  const dealt = (stars) => {
+    const b = createBattle({ left: side([], [], { gold: 60, wall: [{ id: 'dragonsHoard', stars }], slots: 1 }), right: side(['villager'], [], { hp: 10000 }), seed: 1 });
+    while (b.t < 20) b.step();
+    return b.roster[0][0].dealt;
+  };
+  assert.ok(dealt(3) >= dealt(0) * 4, `${dealt(3)} vs ${dealt(0)}`);
+});
+
+test('a bound shrine tilts the shop toward its resource and units', () => {
+  const count = (bound) => {
+    let coins = 0, track = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      const s = run.newRun(seed);
+      if (bound) { s.bound = 'caravan'; s.fed.caravan = 5; }
+      run.rollShop(s);
+      for (const o of s.shop) { if (o.id === 'coin') coins++; if (o.id === 'camel' || o.id === 'trader') track++; }
+    }
+    return { coins, track };
+  };
+  const a = count(false), b = count(true);
+  assert.ok(b.coins > a.coins * 2, `${b.coins} vs ${a.coins}`);
+  assert.ok(b.track > a.track, `${b.track} vs ${a.track}`);
+});

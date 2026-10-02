@@ -307,6 +307,8 @@ export function createBattle({ left, right, seed = 1 }) {
     if (act.goldMult) n = S.gold * act.goldMult;
     if (act.goldFrac) n = Math.min(act.max || Infinity, Math.floor(S.gold * act.goldFrac));
     if (act.shieldFrac) n = Math.floor(S.shield * act.shieldFrac);
+    // gold- and shield-scaled hits replace the base number, so apply stars here
+    if (act.goldMult || act.goldFrac || act.shieldFrac) n = Math.round(n * starMult(u.def, u.stars));
     if (act.spendShield) { n = S.shield; S.shield = 0; }
     if (act.healFrac) {
       const healed = S.healLog.filter(([t]) => t > b.t - 4 * RULES.time).reduce((a, [, h]) => a + h, 0);
