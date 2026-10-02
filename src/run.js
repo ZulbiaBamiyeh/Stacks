@@ -6,7 +6,8 @@ import {
 } from './content.js';
 import { createRng, randomSeed } from './rng.js';
 
-export const SAVE_VERSION = 1;
+// Bump when rules change enough that old saves would be unplayable.
+export const SAVE_VERSION = 2;
 
 export function newRun(seed = randomSeed()) {
   const s = {
@@ -28,6 +29,9 @@ export function newRun(seed = randomSeed()) {
     history: [],
   };
   rollShop(s);
+  // Day 1 starts with a free Village Pack on the table.
+  s.gold += PACKS.village.price;
+  buyPack(s, 'village');
   return s;
 }
 

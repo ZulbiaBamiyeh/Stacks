@@ -441,7 +441,7 @@ export const RULES = {
   rareCap: 50,
   suddenDeath: 45,
   // Gold to combine, by the tier of the result (rares cost like tier 4).
-  combineCost: [0, 0, 2, 4, 6],
+  combineCost: [0, 0, 1, 3, 5],
   combineTime: 0.9,
 };
 export const fortressHp = (day) => 40 + 20 * day;

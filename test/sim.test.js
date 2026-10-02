@@ -52,18 +52,19 @@ test('recipes are symmetric', () => {
 test('run: pack, open, combine, wall, fight', () => {
   const s = run.newRun(123);
   assert.equal(s.gold, 10);
+  assert.equal(s.packs.length, 1, 'free starter pack');
   const p = run.buyPack(s, 'village');
   assert.ok(p.ok);
   assert.equal(s.gold, 7);
   while (s.packs.length) run.openOne(s, s.packs[0].uid);
-  assert.equal(s.table.length, 3);
+  assert.equal(s.table.length, 6);
   const v = run.makeInst(s, 'villager'); s.table.push(v);
   const w = run.makeInst(s, 'wood'); s.table.push(w);
   const goldBefore = s.gold;
   const c = run.combine(s, w.uid, v.uid);
   assert.ok(c.ok);
   assert.equal(c.inst.id, 'archer');
-  assert.equal(s.gold, goldBefore - 2);
+  assert.equal(s.gold, goldBefore - 1);
   assert.ok(run.toWall(s, c.inst.uid, 0).ok);
   const res = run.finishFight(s, true, 'bot');
   assert.equal(s.day, 2);
@@ -140,7 +141,7 @@ test('track packs hold only tier-1 cards, so they cannot be sold for profit', as
 
 test('combining costs gold by result tier and fails when broke', () => {
   const s = run.newRun(4);
-  s.gold = 1;
+  s.gold = 0;
   const v = run.makeInst(s, 'villager'); s.table.push(v);
   const w = run.makeInst(s, 'wood'); s.table.push(w);
   assert.ok(!run.combine(s, w.uid, v.uid).ok);

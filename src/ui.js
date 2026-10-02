@@ -211,7 +211,7 @@ export function createUI() {
       <h4>Each day</h4>
       <ul>
         <li><b>Buy packs</b> from the top row, then click a pack on the table to pop its cards.</li>
-        <li><b>Combine</b>: drag a card onto another. If a recipe exists they merge for gold: 2 for a tier II result, 4 for tier III, 6 for tier IV or a rare. A ★ means a rare can drop.</li>
+        <li><b>Combine</b>: drag a card onto another. If a recipe exists they merge for gold: 1 for a tier II result, 3 for tier III, 5 for tier IV or a rare. A ★ means a rare can drop.</li>
         <li><b>Eaters</b> (cards with an "ate 0/5" tag) grow when you drop their food on them, and evolve after enough meals.</li>
         <li><b>Wall</b>: drag units into the slots at the bottom. Only wall units fight. Slots grow on days 4 and 7.</li>
         <li><b>Market</b> on the right sells singles. <b>Sell</b> cards top-left. Feed Ember, Bone, Berry, Coin or Stone to the <b>Shrine</b> to unlock track packs.</li>

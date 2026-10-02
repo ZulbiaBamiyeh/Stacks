@@ -10,8 +10,9 @@ live roster (every card, recipe and pack as the code has them) is generated into
 
 Changes from the design doc so far:
 
-- **Combining costs gold**: 2 for a tier II result, 4 for tier III, 6 for tier
-  IV or a rare. Income is **5 gold a day** (+2 for a win).
+- **Combining costs gold**: 1 for a tier II result, 3 for tier III, 5 for tier
+  IV or a rare. Income is **5 gold a day** (+2 for a win), and day 1 starts
+  with 10 gold plus a free Village Pack.
 - **Everything in a fight is 1.5x slower** than the doc's numbers (cooldowns,
   freezes, burn every 1.5s, poison every 3s, sudden death from 45s). Card text
   is rewritten automatically from the doc's base numbers (`RULES.time`).

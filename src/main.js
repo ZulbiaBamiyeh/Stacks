@@ -1112,7 +1112,7 @@ function newRun() {
   $('fight-box').hidden = false;
   world.frame(HOME.x, HOME.z, HOME.w, HOME.h);
   refresh();
-  ui.banner('Day 1<small>buy a pack to begin</small>');
+  ui.banner('Day 1<small>click your free pack to open it</small>');
 }
 
 // ------------------------------------------------------------------ chrome buttons
@@ -1196,13 +1196,13 @@ requestAnimationFrame(frame);
 $('loading').classList.add('gone');
 setTimeout(() => $('loading').remove(), 500);
 
-if (!S.history.length && !S.table.length && !S.packs.length && S.day === 1) {
+if (!S.history.length && !S.table.length && S.day === 1) {
   let seen = false;
   try { seen = localStorage.getItem('stackbrawl.seenHelp') === '1'; } catch { /* ignore */ }
   if (!seen) {
     try { localStorage.setItem('stackbrawl.seenHelp', '1'); } catch { /* ignore */ }
     bindModal(ui.help());
-  } else ui.banner('Day 1<small>buy a pack to begin</small>');
+  } else ui.banner('Day 1<small>click your free pack to open it</small>');
 }
 
 // Debug handle for the console.
