@@ -2,13 +2,12 @@
 import * as THREE from 'three';
 import { CARDS, PACKS, TRACKS, RULES, wallSlots, fortressHp, eats } from './content.js';
 import * as R from './run.js';
+import { createBattle, DT } from './sim.js';
 import { fetchGhost, submitGhost } from './ghosts.js';
 import { createWorld, L, CARD, wallX, arenaX } from './gfx/world.js';
 import { CardView, loadArt, setAnisotropy } from './gfx/card.js';
-import { createFx } from './gfx/fx.js';
-import { createBattlefield } from './gfx/battlefield.js';
-import { createLaneBattle, DT as LANE_DT } from './proto/lanes.js';
-import { spawnerFor, castleHpFor } from './proto/army.js';
+import { createFx, createFortressFx } from './gfx/fx.js';
+import { createFortressHud } from './gfx/fortress.js';
 import * as D from './gfx/draw.js';
 import { createUI, loadCodex, saveCodex } from './ui.js';
 import { sfx } from './audio.js';
@@ -109,7 +108,7 @@ function refreshSlots() {
 const towerPlaque = world.makeDecal(2.3, 0.56, D.drawLabel(''), L.tower.x, L.tower.z + 1.45, 0.008);
 let plaqueText = '';
 function refreshPlaque() {
-  const t = `Castle  ${castleHpFor(S.day)} HP`;
+  const t = `Fortress  ${fortressHp(S.day)} HP`;
   if (t === plaqueText) return;
   plaqueText = t;
   towerPlaque.setCanvas(D.drawLabel(t, { bg: '#2b2724', color: '#fff', size: 54 }));
@@ -295,7 +294,7 @@ const stage = $('stage');
 function pickAt(cx, cy) {
   const ray = world.pointerRay(cx, cy);
   const objs = [];
-  for (const v of [...views.values(), ...packViews.values(), ...marketViews.filter(Boolean), ...bv[1].filter(Boolean)]) {
+  for (const v of [...views.values(), ...packViews.values(), ...marketViews.filter(Boolean), ...bv[1].filter(Boolean), ...bv[0].filter((x) => x && x.summoned)]) {
     if (!v.dead) objs.push(v.body, v.face);
   }
   for (const t of tiles) t.group.traverse((o) => { if (o.isMesh) objs.push(o); });
@@ -798,23 +797,31 @@ function updateCombos(dt) {
 }
 
 // ------------------------------------------------------------------ battle
-// Fights happen on the battlefield in the forest: each card on your wall
-// becomes a spawner that sends units at the enemy castle.
 
 let B = null;
 let ghost = null;
 let speed = 1;
 let acc = 0;
 let result = null;
+const auraClock = [0, 0];
 let lastBreakdown = null;
-const field = createBattlefield({ world, fx, sfx });
+const fortFx = { 0: createFortressFx(scene, world.towers.player), 1: createFortressFx(scene, world.towers.enemy) };
+
+const fortHud = { 0: createFortressHud(scene, world.towers.player), 1: createFortressHud(scene, world.towers.enemy) };
+fortHud[0].hide();
+fortHud[1].hide();
+const towerPos = (side) => (side === 0 ? world.towers.player : world.towers.enemy).position.clone().setY(1.7);
+const unitPos = (ref) => {
+  const v = ref && bv[ref.side][ref.slot];
+  return v ? v.pos.clone().setY(0.35) : towerPos(ref ? ref.side : 0);
+};
 
 $('btn-fight').addEventListener('click', () => startFight());
 document.querySelectorAll('.speed').forEach((b) => b.addEventListener('click', () => { speed = Number(b.dataset.speed); ui.setSpeed(speed); }));
 $('btn-skip').addEventListener('click', () => {
   if (!B || mode !== 'battle') return;
   while (!B.over) B.step();
-  B.events = B.events.filter((e) => e.type === 'end');
+  B.events.length = 0;
 });
 
 async function startFight() {
@@ -829,19 +836,10 @@ async function startFight() {
   const snap = R.snapshot(S, 'You');
   ghost = await fetchGhost({ day: S.day, wins: S.wins, losses: S.losses, runSeed: S.seed, seed: (S.seed ^ (S.day * 2654435761)) >>> 0 });
   submitGhost(snap, S.seed);
-  const castleHp = castleHpFor(S.day);
-  B = createLaneBattle({
-    left: snap.wall.map(spawnerFor),
-    right: ghost.wall.map(spawnerFor),
-    seed: (S.seed * 31 + S.day) >>> 0,
-    castleHp,
-  });
-  B.names = [snap.name, ghost.name];
-  field.start(B);
+  B = createBattle({ left: snap, right: ghost, seed: (S.seed * 31 + S.day) >>> 0 });
   acc = 0;
   bv = [[], []];
   sfx.whoosh();
-  // Your wall cards fly out to stand beside your castle; the ghost's cards drop in opposite.
   for (let i = 0; i < snap.slots; i++) {
     const inst = S.wall[i];
     const v = inst && views.get(inst.uid);
@@ -849,71 +847,193 @@ async function startFight() {
     v.busy = true;
     v.raise();
     bv[0][i] = v;
-    const p = field.cardPos(0, i);
-    v.flyTo(p.x, p.z, { dur: 1.1, arc: 5, delay: i * 0.07 });
+    v.flyTo(arenaX(i), A.playerZ, { dur: 0.95, arc: 4, delay: i * 0.07 });
   }
   for (let i = 0; i < ghost.slots; i++) {
     const c = ghost.wall[i];
     if (!c || !CARDS[c.id]) continue;
-    const v = new CardView(scene, { id: c.id, perm: c.perm || 0, meals: c.meals || 0 });
-    const p = field.cardPos(1, i);
-    v.place(p.x, p.z - 3);
-    v.flyTo(p.x, p.z, { dur: 0.7, arc: 5, delay: 0.8 + i * 0.12, done: () => { fx.puffs(v.pos, { n: 6, s: 0.35 }); sfx.drop(); } });
+    const v = new CardView(scene, { id: c.id, perm: c.perm || 0 });
+    v.place(arenaX(i), A.enemyZ - 3);
+    v.flyTo(arenaX(i), A.enemyZ, { dur: 0.7, arc: 5, delay: 0.7 + i * 0.12, done: () => { fx.puffs(v.pos, { n: 6, s: 0.35 }); sfx.drop(); } });
     v.busy = true;
     v.enemy = true;
     bv[1][i] = v;
   }
-  field.frame(view);
+  fortFx[0].reset();
+  fortFx[1].reset();
+  fortHud[0].reset(snap.hp);
+  fortHud[1].reset(ghost.hp);
+  world.frame(0, A.cz - 0.15, 19.4, 13.6);
   view.zoom = 1;
-  ui.battleStart({ ...snap, hp: castleHp }, { ...ghost, hp: castleHp });
+  ui.battleStart(snap, ghost);
   ui.setSpeed(speed);
-  ui.laneUpdate(B);
+  ui.battleUpdate(B);
   ui.banner(`Day ${S.day}<small>vs ${ui.esc(ghost.name)}</small>`);
-  later(2.0, () => {
-    ui.banner('Charge!');
+  later(1.9, () => {
+    ui.banner('Brawl!');
     sfx.bigHit();
     mode = 'battle';
   });
 }
 
+function battleEvent(e) {
+  const kindOf = (k) => (k === 'dmg' ? 'dmg' : k);
+  switch (e.type) {
+    case 'act': {
+      const v = e.src && bv[e.src.side][e.src.slot];
+      if (v) { v.hop(e.mirror ? 1.6 : 2.2); v.kick(0.06); }
+      break;
+    }
+    case 'dmg': {
+      // Damage lands in the fortress's counters beside the tower, never on the castle itself.
+      const impact = () => {
+        const kind = e.kind === 'burn' || e.kind === 'poison' || e.kind === 'sudden' ? e.kind : 'hit';
+        fortHud[e.side].add(kind, e.amount);
+        if (e.absorbed > 0) { fortHud[e.side].add('blocked', e.absorbed); fortFx[e.side].hit(); }
+        if (e.amount > 0 && kind === 'hit') fx.puffs(towerPos(e.side).setY(1.1), { n: e.amount >= 10 ? 6 : 2, s: 0.28, spread: 0.8 });
+        if (kind === 'burn' || kind === 'poison') sfx.tick();
+        else if (e.amount + e.absorbed >= 15) { sfx.bigHit(); view.shake = Math.min(0.4, view.shake + 0.2); }
+        else sfx.hit();
+        if (e.crit) fx.label(towerPos(e.side).add(new THREE.Vector3(-2.6, 0.6, -1.2)), 'crit!', '#f2c64a', 0.8);
+      };
+      if (e.src) {
+        sfx.shoot();
+        fx.projectile(unitPos(e.src), towerPos(e.side), e.pierce ? 'charge' : 'dmg', { size: e.crit ? 1.5 : 1, dur: 0.5, onHit: impact });
+      } else impact();
+      break;
+    }
+    case 'tick': {
+      fx.puffs(towerPos(e.side).setY(1.2), { n: Math.min(8, 2 + Math.floor(e.amount / 5)), s: 0.26, spread: 0.9, color: e.kind === 'burn' ? '#ffb070' : '#b6e38a' });
+      ui.flashStatus(e.side, e.kind);
+      break;
+    }
+    case 'heal':
+      fx.projectile(unitPos(e.src), towerPos(e.side), 'heal', { arc: 1.4, dur: 0.45, size: 0.8, onHit: () => { fortHud[e.side].add('heal', e.amount); sfx.heal(); } });
+      break;
+    case 'shield':
+      if (!e.src) { fortHud[e.side].add('shield', e.amount); break; }
+      fx.projectile(unitPos(e.src), towerPos(e.side), 'shield', { arc: 1.4, dur: 0.45, size: 0.8, onHit: () => { fortHud[e.side].add('shield', e.amount); fortFx[e.side].hit(); sfx.shield(); } });
+      break;
+    case 'delay': {
+      const tv = e.target && bv[e.target.side][e.target.slot];
+      if (e.src && e.target) fx.projectile(unitPos(e.src), unitPos(e.target), 'sand', { arc: 1, dur: 0.3, size: 0.6, onHit: () => { if (tv) { tv.kick(-0.1); fx.label(tv.pos.clone().setY(0.4), 'slowed', '#e8c98f', 0.55); } } });
+      break;
+    }
+    case 'status': {
+      if (e.src && e.src.side !== e.side) {
+        fx.projectile(unitPos(e.src), towerPos(e.side), e.kind, { dur: 0.5, size: 0.9, onHit: () => ui.flashStatus(e.side, e.kind) });
+      } else {
+        fx.label(e.src ? unitPos(e.src) : towerPos(e.side), `+${e.amount}`, '#fff', 0.6, e.kind);
+      }
+      break;
+    }
+    case 'miss':
+      fx.label(unitPos(e.src), 'miss', '#ffffff', 0.8);
+      break;
+    case 'crit':
+      fx.label(unitPos(e.src), 'crit!', '#f2c64a', 0.9);
+      break;
+    case 'freeze': {
+      const tv = bv[e.target.side][e.target.slot];
+      fx.projectile(unitPos(e.src), unitPos(e.target), 'freeze', { arc: 1.6, dur: 0.3, onHit: () => { if (tv) { fx.sparkles(tv.pos, { n: 6, color: '#bfe9ff' }); tv.kick(-0.08); } sfx.freeze(); } });
+      break;
+    }
+    case 'bless': {
+      const tv = bv[e.target.side][e.target.slot];
+      fx.projectile(unitPos(e.src), unitPos(e.target), 'bless', { arc: 1.2, dur: 0.28, size: 0.7, onHit: () => { if (tv) { fx.sparkles(tv.pos, { n: 4 }); tv.kick(0.08); } } });
+      break;
+    }
+    case 'charge':
+      if (e.src && e.target) fx.projectile(unitPos(e.src), unitPos(e.target), 'charge', { arc: 0.8, dur: 0.22, size: 0.6 });
+      break;
+    case 'copy':
+      if (e.src) fx.sparkles(unitPos(e.src), { n: 6, color: '#d9c8ff' });
+      break;
+    case 'summon': {
+      const z = e.side === 0 ? A.playerZ : A.enemyZ;
+      const v = new CardView(scene, { id: e.id, summon: true });
+      v.place(arenaX(e.slot), z);
+      v.pos.y = 0;
+      v.flyTo(arenaX(e.slot), z, { dur: 0.45, arc: 2.5, done: () => fx.puffs(v.pos, { n: 5, s: 0.3 }) });
+      v.busy = true;
+      v.summoned = true;
+      if (e.src) fx.projectile(unitPos(e.src), new THREE.Vector3(arenaX(e.slot), 0.3, z), 'dmg', { arc: 1, dur: 0.25, size: 0.6 });
+      bv[e.side][e.slot] = v;
+      break;
+    }
+    case 'revive':
+      fx.label(towerPos(e.side), 'REVIVE!', '#f2c64a', 1.4);
+      fx.sparkles(towerPos(e.side), { n: 30, spread: 2.2 });
+      sfx.rare();
+      break;
+    case 'resist':
+      fx.label(towerPos(e.side), 'immune', '#bfe9ff', 0.8);
+      break;
+    default:
+      break;
+  }
+}
+
 function updateBattle(dt) {
-  if (!B) return;
   if (mode === 'battle') {
     acc += dt * speed;
-    let n = 0;
-    while (acc >= LANE_DT && !B.over && n < 400) { B.step(); acc -= LANE_DT; n++; }
-    for (const e of B.events.splice(0)) {
-      field.handle(e, { onSpawn: (side, slot) => { const cv = bv[side][slot]; if (cv) { cv.hop(2); cv.kick(0.08); } } });
+    let steps = 0;
+    while (acc >= DT && !B.over && steps < 400) {
+      B.step();
+      acc -= DT;
+      steps += 1;
     }
+    const evs = B.events.splice(0);
+    for (const e of evs) battleEvent(e);
     if (B.over) endBattle();
   }
-  field.sync(dt * (mode === 'battle' ? speed : 1));
-  if (mode === 'battle' || mode === 'outro') {
-    for (const side of [0, 1]) B.spawners[side].forEach((sp, i) => {
-      const cv = bv[side][i];
-      if (cv && sp) cv.setBar(mode === 'battle' ? sp.timer / sp.T.spawn : null);
-    });
+  if (B && (mode === 'battle' || mode === 'outro' || mode === 'intro')) {
+    for (const side of [0, 1]) {
+      B.sides[side].units.forEach((u, slot) => {
+        const v = bv[side][slot];
+        if (!v) return;
+        if (!u) { v.setBar(null); return; }
+        const t = u.timers[0];
+        v.setBar(t && mode !== 'intro' ? t.prog / t.cd : null, u.frozen > 0 ? '#5aa9d6' : D.INK);
+        v.frostGoal = u.frozen > 0 ? 0.55 : 0;
+        if (mode !== 'intro') v.setTally(Math.floor(u.dealt));
+      });
+      fortFx[side].set(B.sides[side].shield);
+      fortHud[side].set(B.sides[side]);
+      // Ambient flames / bubbles on a fortress that is burning or poisoned.
+      const St = B.sides[side];
+      auraClock[side] += dt;
+      if (auraClock[side] > 0.12) {
+        auraClock[side] = 0;
+        const tp = towerPos(side);
+        if (St.burn > 0 && Math.random() < Math.min(1, 0.25 + St.burn / 12)) fx.puffs(tp.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.6, -0.6, (Math.random() - 0.5) * 1.2)), { n: 1, s: 0.22 + Math.min(0.3, St.burn / 60), up: 2.2, spread: 0.1, color: '#ff9a4a', life: 0.7 });
+        if (St.poison > 0 && Math.random() < Math.min(1, 0.2 + St.poison / 15)) fx.puffs(tp.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.6, -0.9, (Math.random() - 0.5) * 1.2)), { n: 1, s: 0.18 + Math.min(0.25, St.poison / 60), up: 1.4, spread: 0.05, color: '#9fd05f', life: 0.9 });
+      }
+    }
+    ui.battleUpdate(B);
   }
-  ui.laneUpdate(B);
 }
 
 function endBattle() {
   mode = 'outro';
   const won = B.winner === 0;
   lastBreakdown = [0, 1].map((side) => ({
-    units: B.spawners[side].filter(Boolean).map((sp) => ({ id: sp.card, dealt: sp.dealt, n: sp.sent, kills: sp.kills }))
+    units: B.roster[side].map((u) => ({ id: u.id, dealt: Math.round(u.dealt), summoned: u.summoned }))
+      .reduce((acc, u) => { const k = u.summoned ? `${u.id}*` : null; const prev = k && acc.find((x) => x.key === k); if (prev) { prev.dealt += u.dealt; prev.n += 1; } else acc.push({ ...u, key: k || Math.random(), n: 1 }); return acc; }, [])
       .sort((a, b) => b.dealt - a.dealt),
-    taken: {},
+    taken: { ...B.sides[side].taken },
     time: B.t,
   }));
   result = R.finishFight(S, won, ghost.name);
   save();
   for (const v of bv[0]) if (v) v.setBar(null);
   for (const v of bv[1]) if (v) v.setBar(null);
+  const loser = won ? 1 : 0;
+  fx.puffs(towerPos(loser), { n: 18, spread: 2, s: 0.6 });
   view.shake = 0.5;
   if (won) sfx.win(); else sfx.lose();
   ui.banner(won ? 'Victory!' : 'Defeat', { hold: true });
-  later(1.6, showResult);
+  later(1.5, showResult);
 }
 
 function showResult() {
@@ -932,24 +1052,27 @@ function closeBattle() {
   ui.modal(null);
   ui.hideBanner();
   ui.battleEnd();
+  fortHud[0].hide();
+  fortHud[1].hide();
+  for (const v of bv[0]) if (v) v.setTally(null);
   for (const v of bv[1]) if (v) { fx.puffs(v.pos, { n: 6, s: 0.35 }); v.dispose(scene); }
   for (const [i, v] of bv[0].entries()) {
     if (!v) continue;
-    v.flyTo(wallX(i), L.wall.z, { dur: 1.1, arc: 5, delay: i * 0.06, done: (c) => { c.busy = false; } });
+    if (v.summoned) { fx.puffs(v.pos, { n: 6, s: 0.35 }); v.dispose(scene); continue; }
+    v.frostGoal = 0;
+    v.flyTo(wallX(i), L.wall.z, { dur: 0.85, arc: 4, delay: i * 0.06, done: (c) => { c.busy = false; } });
   }
   bv = [[], []];
-  field.clear();
   B = null;
-  view.tilt = 0.3;
   world.frame(HOME.x, HOME.z, HOME.w, HOME.h);
   view.zoom = 1;
   if (result.over) {
-    later(1.1, showRunOver);
+    later(0.9, showRunOver);
     mode = 'over';
     return;
   }
   const prevSlots = slotsShown;
-  later(1.1, () => {
+  later(0.9, () => {
     mode = 'shop';
     $('fight-box').hidden = false;
     ui.banner(`Day ${S.day}`);
@@ -1039,7 +1162,7 @@ function frame(now) {
   }
   updateBattle(dt);
 
-  const all = [...views.values(), ...leaving, ...packViews.values(), ...marketViews.filter(Boolean), ...bv[1].filter(Boolean)];
+  const all = [...views.values(), ...leaving, ...packViews.values(), ...marketViews.filter(Boolean), ...bv[1].filter(Boolean), ...bv[0].filter((v) => v && v.summoned)];
   for (const v of all) {
     const hovered = v === hover && !drag && !v.busy;
     v.liftGoal = v.restLift + (v.dragging ? 0.75 : hovered ? 0.1 : 0) + (v.busy && combos.some((c) => c.a === v) ? 0.06 : 0);
@@ -1057,6 +1180,10 @@ function frame(now) {
     const goal = m.userData.goal || 0;
     m.material.opacity += (goal - m.material.opacity) * (1 - Math.exp(-dt * 12));
   }
+  fortFx[0].update(dt);
+  fortFx[1].update(dt);
+  fortHud[0].update(dt);
+  fortHud[1].update(dt);
   fx.update(dt);
   world.updateCamera(dt);
   world.render();

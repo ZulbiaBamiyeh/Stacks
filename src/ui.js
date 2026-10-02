@@ -2,8 +2,6 @@
 // and the fortress bars during a fight.
 import { CARDS, PACKS, RECIPES, RULES, fortressHp, wallSlots } from './content.js';
 import { iconURL, ROMAN, cardStats } from './gfx/draw.js';
-import { castleHpFor, unitTypeFor } from './proto/army.js';
-import { UNIT_TYPES } from './proto/lanes.js';
 
 const $ = (id) => document.getElementById(id);
 const ico = (name) => `<i class="ico" style="background-image:url(${iconURL(name)})"></i>`;
@@ -35,7 +33,7 @@ export function createUI() {
     const found = new Set([...codex].map((k) => k.replace('!', ''))).size;
     $('ideas-count').textContent = `${found}/${RECIPES.size}`;
     const onWall = s.wall.slice(0, wallSlots(s.day)).filter(Boolean).length;
-    $('fight-sub').innerHTML = `${ico('heal')} ${castleHpFor(s.day)} castle · ${onWall}/${wallSlots(s.day)} on wall`;
+    $('fight-sub').innerHTML = `${ico('heal')} ${fortressHp(s.day)} fortress · ${onWall}/${wallSlots(s.day)} on wall`;
   }
 
   function cardInfo(id, { inst = null, price = null, sell = null, codex = new Set(), extra = '' } = {}) {
@@ -58,8 +56,7 @@ export function createUI() {
       }).join('')}${uses.length > known.length ? `<div class="muted">${known.length ? '+ ' : ''}${uses.length - known.length} undiscovered combination${uses.length - known.length > 1 ? 's' : ''}</div>` : ''}</div>`
       : '';
     const right = price != null ? `<span class="sell">${ico('coin')} ${price}</span>` : sell != null ? `<span class="sell muted">sells ${ico('coin')} ${sell}</span>` : '';
-    const unit = d.kind === 'unit' ? `<p class="muted">In battle: sends a <b>${UNIT_TYPES[unitTypeFor(d)].name.toLowerCase()}</b> (placeholder until this card gets its own unit).</p>` : '';
-    return `<h3>${esc(d.name)}</h3><span class="tag">${tag}</span>${right}<div class="stats">${stats}</div><p>${esc(d.text)}</p>${unit}${perm}${extra}${recipes}`;
+    return `<h3>${esc(d.name)}</h3><span class="tag">${tag}</span>${right}<div class="stats">${stats}</div><p>${esc(d.text)}</p>${perm}${extra}${recipes}`;
   }
 
   function packInfo(packId, { price = true } = {}) {
@@ -162,30 +159,6 @@ export function createUI() {
     c.textContent = sudden ? `Sudden death ${b.suddenK}` : `${b.t.toFixed(1)}s`;
     c.classList.toggle('sudden', sudden);
   }
-  // Unit fights: castle HP plus how each army is doing.
-  function laneUpdate(b) {
-    for (const side of [0, 1]) {
-      const el = forts[side];
-      const c = b.castles[side];
-      const p = Math.max(0, c.hp) / c.max;
-      el.querySelector('.fill').style.width = `${p * 100}%`;
-      el.querySelector('.lag').style.width = `${p * 100}%`;
-      el.querySelector('.shield').style.width = '0%';
-      el.querySelector('.hp-num').innerHTML = `${ico('heal')}${Math.max(0, Math.ceil(c.hp))}/${c.max}`;
-      const alive = b.units.filter((u) => u.side === side && u.state !== 'dead').length;
-      const st = b.stats[side];
-      const html = `<span class="status">${alive} on the field</span><span class="status">${st.spawned} sent</span><span class="status">${st.lost} fallen</span>`;
-      if (html !== lastStatus[side]) {
-        el.querySelector('.statuses').innerHTML = html;
-        lastStatus[side] = html;
-      }
-    }
-    const clock = $('battle-clock');
-    const siege = b.t >= 60;
-    clock.textContent = siege ? `Siege! ${b.t.toFixed(0)}s` : `${b.t.toFixed(1)}s`;
-    clock.classList.toggle('sudden', siege);
-  }
-
   function flashStatus(side, kind) {
     const chip = forts[side].querySelector(`.s-${kind}`);
     if (!chip) return;
@@ -200,12 +173,12 @@ export function createUI() {
     const col = (side, title) => {
       const d = bd[side];
       const max = Math.max(1, ...d.units.map((u) => u.dealt));
-      const rows = d.units.map((u) => `<div class="dmg-row"><span class="nm">${esc(nameOf(u.id))}${u.kills != null ? ` <span class="muted">· ${u.n} sent, ${u.kills} kills</span>` : u.n > 1 ? ` ×${u.n}` : ''}</span><span class="bar-mini"><i style="width:${(u.dealt / max) * 100}%"></i></span><b>${Math.round(u.dealt)}</b></div>`).join('');
+      const rows = d.units.map((u) => `<div class="dmg-row"><span class="nm">${esc(nameOf(u.id))}${u.n > 1 ? ` ×${u.n}` : ''}</span><span class="bar-mini"><i style="width:${(u.dealt / max) * 100}%"></i></span><b>${u.dealt}</b></div>`).join('');
       const t = bd[1 - side].taken;
       const ticks = [['burn', t.burn], ['poison', t.poison], ['thorns', t.thorns]].filter(([, n]) => n > 0).map(([k, n]) => `${k === 'thorns' ? 'thorns' : ico(k)} ${Math.round(n)}`).join(' · ');
       return `<div class="dmg-col"><h4>${title}</h4>${rows || '<div class="muted">No damage</div>'}${ticks ? `<div class="muted small">of which ticks: ${ticks}</div>` : ''}</div>`;
     };
-    return `<div class="dmg-cols">${col(0, 'Your damage')}${col(1, 'Their damage')}</div><p class="muted small">Fight lasted ${bd[0].time.toFixed(1)}s. Damage includes hits on enemy units and on the castle.</p>`;
+    return `<div class="dmg-cols">${col(0, 'Your damage')}${col(1, 'Their damage')}</div><p class="muted small">Fight lasted ${bd[0].time.toFixed(1)}s. Burn and poison tick damage is credited to the units that applied it.</p>`;
   }
 
   function battleEnd() {
@@ -250,5 +223,5 @@ export function createUI() {
       <div class="actions"><button class="big-btn ghost" data-newrun>Abandon run</button><button class="big-btn" data-close>Got it</button></div>`);
   }
 
-  return { hud, cardInfo, packInfo, info, hint, toast, banner, hideBanner, modal, battleStart, battleUpdate, laneUpdate, battleEnd, flashStatus, breakdown, setSpeed, setSound, ideas, help, ico, esc };
+  return { hud, cardInfo, packInfo, info, hint, toast, banner, hideBanner, modal, battleStart, battleUpdate, battleEnd, flashStatus, breakdown, setSpeed, setSound, ideas, help, ico, esc };
 }

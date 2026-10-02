@@ -74,16 +74,3 @@ Cards without art fall back to placeholder doodles.
 
 Runs are saved in `localStorage`, along with discovered recipes and the ghost
 pool (your own past walls, which later runs can face).
-
-## Unit battles
-
-Fights are Footman Frenzy style: when you press Fight, your wall cards fly to
-the battlefield and each one becomes a spawner, sending units across the field
-at the enemy castle. Sim: `src/proto/lanes.js` (deterministic, so ghosts
-replay exactly). 3D models: `src/proto/models.js`. Rendering:
-`src/gfx/battlefield.js`.
-
-For now there are three unit types (villager, warrior, archer). Every card maps
-to one of them in `src/proto/army.js`, with stats scaled by tier, until each
-card gets its own unit. `proto.html` is a sandbox for testing matchups without
-the shop.
