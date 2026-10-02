@@ -389,7 +389,7 @@ function blob(ctx, cx, cy, rx, ry, seed) {
 
 const NUMERIC = ['dmg', 'heal', 'shield', 'burn', 'poison', 'sand', 'heat', 'luck', 'bless', 'freeze'];
 
-export function cardStats(def, perm = 0) {
+export function cardStats(def, perm = 0, live = null) {
   const stats = [];
   const seen = new Set();
   for (const [, ...acts] of def.t || []) {
@@ -402,6 +402,13 @@ export function cardStats(def, perm = 0) {
         const grows = ['pct', 'perGold', 'goldFrac', 'goldMult', 'shieldFrac', 'spendShield', 'healFrac', 'ramp', 'perAlly', 'perEnemy', 'ifEnemy',
           'perShield', 'perMissing', 'perDay', 'perFrozen', 'perOwned'].some((k) => a[k]);
         if (a.k !== 'freeze' && (grows || a.n === 0)) n = a.n ? `${n}+` : '*';
+        // During a fight (or on the wall) show the live value, marked when it moved.
+        if (live && live[a.k] != null && a.k !== 'freeze') {
+          const base = a.n + (a.k === def.main ? perm : 0);
+          const v = live[a.k];
+          stats.push({ k: a.k, n: v, delta: Math.sign(v - base) });
+          continue;
+        }
         stats.push({ k: a.k, n });
       }
     }
@@ -431,7 +438,7 @@ const ART_TINT = {
   bless: '#f8eec6', luck: '#e3f0d6', freeze: '#dbf0f8', heat: '#fbe0bf',
 };
 
-export function drawCard(def, { perm = 0, art = null, summon = false, meals = 0 } = {}) {
+export function drawCard(def, { perm = 0, art = null, summon = false, meals = 0, live = null } = {}) {
   const { w, h } = CARD_PX;
   const cv = canvas(w, h);
   const ctx = cv.getContext('2d');
@@ -530,7 +537,7 @@ export function drawCard(def, { perm = 0, art = null, summon = false, meals = 0 
   // Bottom badges
   const by = h - 58;
   if (def.kind === 'unit') {
-    const stats = cardStats(def, perm);
+    const stats = cardStats(def, perm, live);
     if (stats.length) {
       ctx.font = font(40, 900);
       const parts = stats.map((s) => ({ ...s, tw: ctx.measureText(String(s.n)).width }));
@@ -542,7 +549,7 @@ export function drawCard(def, { perm = 0, art = null, summon = false, meals = 0 
       let x = 22 + 22;
       for (const p of parts) {
         glyph(ctx, p.k, x + 20, by, 40);
-        ctx.fillStyle = '#fff';
+        ctx.fillStyle = p.delta > 0 ? '#9be37f' : p.delta < 0 ? '#ff9a8a' : '#fff';
         ctx.textAlign = 'left';
         ctx.font = font(40, 900);
         ctx.fillText(String(p.n), x + 46, by + 2);

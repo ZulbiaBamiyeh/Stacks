@@ -279,11 +279,27 @@ function separate(dt) {
 
 // ------------------------------------------------------------------ refresh
 
+// Wall cards show their real numbers with neighbour and pack bonuses applied.
+function refreshLive() {
+  const snap = R.snapshot(S, 'You');
+  const probe = createBattle({ left: snap, right: { name: 'probe', hp: 1, slots: 1, wall: [null] }, seed: 1 });
+  const onWall = new Set();
+  probe.sides[0].units.forEach((u, i) => {
+    const inst = S.wall[i];
+    const v = inst && views.get(inst.uid);
+    if (!v || !u) return;
+    onWall.add(v);
+    if (!v.busy) v.setLive(probe.liveStats(u));
+  });
+  for (const v of views.values()) if (!onWall.has(v) && !v.busy && v.live) v.setLive(null);
+}
+
 function refresh() {
   refreshSlots();
   refreshPlaque();
   refreshShopTiles();
   syncViews();
+  refreshLive();
   ui.hud(S, codex);
   save();
 }
@@ -911,6 +927,7 @@ function battleEvent(e) {
     case 'tick': {
       fx.puffs(towerPos(e.side).setY(1.2), { n: Math.min(8, 2 + Math.floor(e.amount / 5)), s: 0.26, spread: 0.9, color: e.kind === 'burn' ? '#ffb070' : '#b6e38a' });
       ui.flashStatus(e.side, e.kind);
+      fortHud[e.side].tick(e.kind);
       break;
     }
     case 'heal':
@@ -980,7 +997,9 @@ function battleEvent(e) {
   }
 }
 
+let liveClock = 0;
 function updateBattle(dt) {
+  liveClock -= dt;
   if (mode === 'battle') {
     acc += dt * speed;
     let steps = 0;
@@ -1003,6 +1022,7 @@ function updateBattle(dt) {
         v.setBar(t && mode !== 'intro' ? t.prog / t.cd : null, u.frozen > 0 ? '#5aa9d6' : D.INK);
         v.frostGoal = u.frozen > 0 ? 0.55 : 0;
         if (mode !== 'intro') v.setTally(Math.floor(u.dealt));
+        if (liveClock <= 0) v.setLive(B.liveStats(u));
       });
       fortFx[side].set(B.sides[side].shield);
       fortHud[side].set(B.sides[side]);
@@ -1017,6 +1037,7 @@ function updateBattle(dt) {
       }
     }
     ui.battleUpdate(B);
+    if (liveClock <= 0) liveClock = 0.2;
   }
 }
 

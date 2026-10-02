@@ -42,8 +42,9 @@ function faceTexture(key, draw) {
   }
   return t;
 }
-export function cardTexture(id, perm = 0, summon = false, meals = 0) {
-  return faceTexture(`c:${id}:${perm}:${summon}:${meals}`, () => D.drawCard(CARDS[id], { perm, art: art.get(id), summon, meals }));
+export function cardTexture(id, perm = 0, summon = false, meals = 0, live = null) {
+  const lk = live ? Object.entries(live).map(([k, v]) => `${k}${v}`).join(',') : '';
+  return faceTexture(`c:${id}:${perm}:${summon}:${meals}:${lk}`, () => D.drawCard(CARDS[id], { perm, art: art.get(id), summon, meals, live }));
 }
 export function packTexture(packId) {
   return faceTexture(`p:${packId}`, () => D.drawPack(packId));
@@ -149,7 +150,7 @@ export class CardView {
     this.id = id;
     this.perm = perm;
     this.meals = meals;
-    this.faceMat.map = cardTexture(id, perm, this.summon, meals);
+    this.faceMat.map = cardTexture(id, perm, this.summon, meals, this.live);
     this.faceMat.needsUpdate = true;
   }
 
@@ -174,6 +175,18 @@ export class CardView {
   }
 
   raise() { this.layer = layerCounter++; }
+
+  // Live numbers (e.g. a Wolf's damage with pack bonuses); null shows the printed values.
+  setLive(live) {
+    const key = live ? JSON.stringify(live) : null;
+    if (key === this.liveKey) return;
+    const grew = live && this.live && Object.keys(live).some((k) => live[k] > (this.live[k] ?? live[k]));
+    this.liveKey = key;
+    this.live = live;
+    this.faceMat.map = cardTexture(this.id, this.perm, this.summon, this.meals, live);
+    this.faceMat.needsUpdate = true;
+    if (grew) this.kick(0.06);
+  }
 
   kick(amount = 0.12) { this.scaleVel += amount * 30; }
 

@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import * as D from './draw.js';
 import { canvasTexture } from './world.js';
+import { RULES } from '../content.js';
 
 const KIND = {
   hit: { color: '#fff7e6', icon: 'dmg', sign: '-' },
@@ -91,17 +92,77 @@ function drawBar(st) {
     c.fillStyle = '#f6dc6a';
     c.fillText(String(st.shield), 104, Hp / 2 + 3);
   }
+  // Burn and poison counters: the number eases down after each tick and the
+  // icon gives a small pulse, like The Bazaar.
   let x = Wp - 44;
   c.textAlign = 'right';
   for (const [k, color] of [['poison', '#c8f0a0'], ['burn', '#ffc890']]) {
-    if (!(st[k] > 0)) continue;
-    const label = String(st[k]);
+    const shown = Math.round(st.disp[k]);
+    if (!(shown > 0)) continue;
+    const pulse = st.pulse[k];
+    const label = String(shown);
+    c.font = font(54 + pulse * 6);
     const tw = c.measureText(label).width;
     c.strokeText(label, x, Hp / 2 + 3);
-    c.fillStyle = color;
+    c.fillStyle = pulse > 0.05 ? '#fff' : color;
     c.fillText(label, x, Hp / 2 + 3);
-    D.glyph(c, k, x - tw - 36, Hp / 2, 62);
+    const gx = x - tw - 36;
+    if (pulse > 0.02) {
+      c.save();
+      c.globalAlpha = pulse * 0.45;
+      c.fillStyle = color;
+      c.beginPath();
+      c.arc(gx, Hp / 2, 34 + pulse * 10, 0, Math.PI * 2);
+      c.fill();
+      c.restore();
+    }
+    D.glyph(c, k, gx, Hp / 2 - pulse * 3, 62 * (1 + pulse * 0.22));
     x -= tw + 110;
+  }
+  return cv;
+}
+
+// Strip under the bar for the side-wide stacks: Luck, Sand, Heat, Cold.
+const BUFFS = [
+  ['luck', 'luck', '#bfe8a8', (n) => `${Math.round(Math.min(60, n * RULES.luckCrit * 100))}% crit`],
+  ['sand', 'sand', '#f0d8a4', (n) => `${Math.round(Math.min(RULES.sandCap, n * RULES.sandMiss) * 100)}% miss`],
+  ['heat', 'heat', '#ffc890', (n) => `+${Math.min(50, n * 2)}% speed`],
+  ['cold', 'cold', '#c8ecfa', (n) => `-${Math.min(50, n * 2)}% speed`],
+];
+function drawBuffs(st) {
+  const Wp = 1152;
+  const Hp = 84;
+  const cv = D.canvas(Wp, Hp);
+  const c = cv.getContext('2d');
+  const items = BUFFS.filter(([k]) => st[k] > 0);
+  if (!items.length) return cv;
+  c.font = font(38);
+  const parts = items.map(([k, icon, color, fx]) => {
+    const label = `${st[k]}`;
+    const sub = fx(st[k]);
+    c.font = font(38);
+    const w1 = c.measureText(label).width;
+    c.font = '800 28px "Nunito", sans-serif';
+    const w2 = c.measureText(sub).width;
+    return { icon, color, label, sub, w: 56 + w1 + 14 + w2 + 34 };
+  });
+  const total = parts.reduce((a, p) => a + p.w, 0) + (parts.length - 1) * 14;
+  let x = (Wp - total) / 2;
+  for (const p of parts) {
+    c.fillStyle = '#2b2724';
+    D.rrect(c, x, 8, p.w, Hp - 16, (Hp - 16) / 2);
+    c.fill();
+    D.glyph(c, p.icon, x + 36, Hp / 2, 44);
+    c.textBaseline = 'middle';
+    c.textAlign = 'left';
+    c.font = font(38);
+    c.fillStyle = p.color;
+    c.fillText(p.label, x + 64, Hp / 2 + 2);
+    const w1 = c.measureText(p.label).width;
+    c.font = '800 28px "Nunito", sans-serif';
+    c.fillStyle = 'rgba(255,255,255,0.75)';
+    c.fillText(p.sub, x + 64 + w1 + 14, Hp / 2 + 3);
+    x += p.w + 14;
   }
   return cv;
 }
@@ -116,8 +177,15 @@ export function createFortressHud(scene, { x, z }) {
   bar.rotation.x = -Math.PI / 2;
   bar.renderOrder = 6;
   g.add(bar);
+  const buffMat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
+  const buffs = new THREE.Mesh(new THREE.PlaneGeometry(BAR.w, BAR.w * (84 / 1152)), buffMat);
+  buffs.rotation.x = -Math.PI / 2;
+  buffs.position.z = BAR.h / 2 + 0.42;
+  buffs.renderOrder = 6;
+  g.add(buffs);
+  let buffKey = null;
 
-  const st = { hp: 0, max: 1, lag: 0, shield: 0, burn: 0, poison: 0, flash: 0, healFlash: 0 };
+  const st = { hp: 0, max: 1, lag: 0, shield: 0, burn: 0, poison: 0, flash: 0, healFlash: 0, disp: { burn: 0, poison: 0 }, pulse: { burn: 0, poison: 0 } };
   let dirty = true;
   let redraw = 0;
   let kick = 0;
@@ -137,14 +205,19 @@ export function createFortressHud(scene, { x, z }) {
     // Where projectiles should land: the middle of the bar.
     target: () => new THREE.Vector3(x, 0.6, z),
     reset(maxHp) {
-      Object.assign(st, { hp: maxHp, max: maxHp, lag: maxHp, shield: 0, burn: 0, poison: 0, flash: 0, healFlash: 0 });
+      Object.assign(st, { hp: maxHp, max: maxHp, lag: maxHp, shield: 0, burn: 0, poison: 0, flash: 0, healFlash: 0, disp: { burn: 0, poison: 0 }, pulse: { burn: 0, poison: 0 } });
       for (const c of Object.values(counters)) g.remove(c.sprite);
       for (const k of Object.keys(counters)) delete counters[k];
       for (const f of floaters.splice(0)) g.remove(f.sprite);
       dirty = true;
+      buffKey = null;
       g.visible = true;
     },
     hide() { g.visible = false; },
+    // A burn or poison tick: pulse that counter.
+    tick(kind) {
+      if (st.pulse[kind] != null) { st.pulse[kind] = 1; dirty = true; }
+    },
     add(kind, n) {
       if (!(n > 0) || !KIND[kind]) return;
       let c = counters[kind];
@@ -169,6 +242,14 @@ export function createFortressHud(scene, { x, z }) {
     },
     set(S) {
       if (S.hp !== st.hp || S.shield !== st.shield || S.burn !== st.burn || S.poison !== st.poison) dirty = true;
+      const key = `${S.luck}|${S.sand}|${S.heat}|${S.cold}`;
+      if (key !== buffKey) {
+        buffKey = key;
+        Object.assign(st, { luck: S.luck, sand: S.sand, heat: S.heat, cold: S.cold });
+        buffMat.map?.dispose();
+        buffMat.map = canvasTexture(drawBuffs(st));
+        buffMat.needsUpdate = true;
+      }
       st.hp = S.hp;
       st.shield = S.shield;
       st.burn = S.burn;
@@ -179,13 +260,25 @@ export function createFortressHud(scene, { x, z }) {
       else st.lag = st.hp;
       if (st.flash > 0) { st.flash -= dt; dirty = true; }
       if (st.healFlash > 0) { st.healFlash = Math.max(0, st.healFlash - dt * 1.5); dirty = true; }
+      for (const k of ['burn', 'poison']) {
+        const target = st[k];
+        const d = st.disp[k];
+        if (Math.abs(target - d) > 0.01) {
+          // new stacks pop in quickly; losses count down a little slower so you see them go
+          const rate = target > d ? 14 : 5;
+          st.disp[k] = d + (target - d) * Math.min(1, dt * rate);
+          if (Math.abs(target - st.disp[k]) < 0.05) st.disp[k] = target;
+          dirty = true;
+        }
+        if (st.pulse[k] > 0) { st.pulse[k] = Math.max(0, st.pulse[k] - dt * 2.8); dirty = true; }
+      }
       redraw -= dt;
       if (dirty && redraw <= 0) {
         barMat.map?.dispose();
         barMat.map = canvasTexture(drawBar(st));
         barMat.needsUpdate = true;
         dirty = false;
-        redraw = 0.05;
+        redraw = 0.033;
       }
       kick = Math.max(0, kick - dt * 3);
       const s = 1 + kick * 0.04;

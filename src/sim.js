@@ -89,14 +89,15 @@ export function createBattle({ left, right, seed = 1 }) {
     return false;
   }
 
-  function num(u, act, scale) {
+  // preview: the value the next action would have, without counting shot-specific bonuses.
+  function num(u, act, scale, preview = false) {
     const S = sides[u.side];
     const E = sides[1 - u.side];
     let n = act.n;
     if (act.fixed) return n;
     if (act.k === u.def.main) n += u.bonus + u.perm + u.selfBonus;
     for (const v of neighbours(u)) if (v.def.aura && v.def.aura.k === act.k) n += v.def.aura.n;
-    if (act.ramp) n += Math.min(act.ramp, Math.max(0, u.fires - 1)) * (act.rampStep || 1);
+    if (act.ramp) n += Math.min(act.ramp, Math.max(0, preview ? u.fires : u.fires - 1)) * (act.rampStep || 1);
     if (act.perEnemy) n += Math.min(act.perEnemy[2] ?? Infinity, Math.floor(E[act.perEnemy[0]] / act.perEnemy[1]));
     if (act.ifEnemy && E[act.ifEnemy[0]] > 0) n += act.ifEnemy[1];
     if (act.perShield) n += Math.floor(S.shield / act.perShield);
@@ -104,8 +105,8 @@ export function createBattle({ left, right, seed = 1 }) {
     if (act.perDay) n += Math.floor(S.day * act.perDay);
     if (act.perAlly) n += Math.min(act.perAlly.max ?? Infinity, alive(S).filter((v) => v !== u && matches(v, act.perAlly)).length) * act.perAlly.n;
     if (act.perFrozen) n += alive(E).filter((v) => v.frozen > 0).length * act.perFrozen;
-    if (act.nth && u.fires % act.nth === 0) n *= act.nthMult;
-    if (act.firstMult && u.fires === 1) n *= act.firstMult;
+    if (!preview && act.nth && u.fires % act.nth === 0) n *= act.nthMult;
+    if (!preview && act.firstMult && u.fires === 1) n *= act.firstMult;
     if (act.edge && (!S.units[u.slot - 1] || !S.units[u.slot + 1])) n *= act.edge;
     if (act.execute && E.hp < E.maxHp * 0.5) n *= act.execute;
     if (act.vsShield && E.shield > 0) n *= act.vsShield;
@@ -589,6 +590,33 @@ export function createBattle({ left, right, seed = 1 }) {
     for (const u of alive(S)) for (let i = 0; i < (u.def.startBless || 0); i++) blessOnce(u);
     for (const u of alive(S)) if (u.def.startNeighbourBonus) for (const v of neighbours(u)) v.bonus += u.def.startNeighbourBonus;
   }
+
+  // Current value of each number a unit shows on its card (first action of each kind).
+  const LIVE = ['dmg', 'heal', 'shield', 'burn', 'poison', 'sand', 'heat', 'luck', 'bless'];
+  b.liveStats = function liveStats(u) {
+    const S = sides[u.side];
+    const E = sides[1 - u.side];
+    const out = {};
+    for (const t of u.timers) {
+      for (const a0 of t.acts) {
+        const a = a0.k === 'alt' ? a0.list[u.altIdx % a0.list.length] : a0;
+        if (!LIVE.includes(a.k) || out[a.k] != null) continue;
+        let n = num(u, a, 1, true);
+        if (a.k === 'dmg') {
+          if (a.perGold) n += Math.floor(S.gold / a.perGold);
+          if (a.perOwned) n += Math.min(a.perOwned, u.owned);
+          for (const v of alive(S)) if (v.def.venom) n += Math.min(v.def.venom, S.poison);
+        }
+        if (a.k === 'poison') {
+          if (a.pct) n = Math.max(a.min || 0, Math.min(a.max || Infinity, Math.floor(E.poison * a.pct))) + u.bonus + u.perm;
+          if (a.per10) n += Math.floor(E.poison / (a.perN || 10)) * a.per10;
+          n += sum(S, 'queen');
+        }
+        out[a.k] = n;
+      }
+    }
+    return out;
+  };
 
   b.step = function step(dt = DT) {
     if (b.over) return;
