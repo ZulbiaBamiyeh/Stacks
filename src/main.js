@@ -38,6 +38,7 @@ function load() {
     s.wall = s.wall.map((c) => (c && CARDS[c.id] ? c : null));
     s.shop = s.shop.map((o) => (o && CARDS[o.id] ? o : null));
     s.packs = s.packs.filter((p) => PACKS[p.pack]).map((p) => ({ ...p, cards: p.cards.filter((id) => CARDS[id]) })).filter((p) => p.cards.length);
+    for (const t of TRACKS) s.fed[t.id] ??= 0;
     s.trinkets = Array.from({ length: RACK_SLOTS }, (_, i) => (s.trinkets?.[i] && TRINKETS[s.trinkets[i].id] ? s.trinkets[i] : null));
     return s;
   } catch { return null; }

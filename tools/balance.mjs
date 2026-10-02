@@ -15,6 +15,7 @@ export const POOLS = {
   luck: ['luckyFairy', 'fairyRing', 'scout', 'archer', 'gambler', 'rogue', 'fairyCourt', 'crystalFairy', 'cloverSprite', 'wishSprite', 'highRoller', 'fourLeafFairy'],
   sand: ['sandcaster', 'jackal', 'dustSprite', 'sandScorpion', 'duneGuard', 'stormCaller', 'mirage', 'duneStalker', 'desertStalker', 'sandworm'],
   bones: ['skeleton', 'graveWolf', 'boneKnight', 'necromancer', 'boneArcher', 'boneHound', 'ashCaller', 'tombStalker', 'plagueSkeleton', 'deathKnight', 'tombKing'],
+  ice: ['snowSprite', 'iceImp', 'penguin', 'yetiCub', 'iceFisher', 'iceScorpion', 'icicleThrower', 'blizzardSprite', 'frostBat', 'snowballGolem', 'penguinColony', 'yeti', 'iceWall', 'frostGiant', 'cryomancer', 'auroraSpirit', 'shardstorm', 'mammoth', 'glacierGolem', 'hoarfrostDragon'],
   desperado: ['werewolf', 'nightScorpion', 'moonFairy', 'nightWatch', 'warlock', 'moonhowler', 'venomDrinker', 'darkKnight', 'roc'],
 };
 // Each stage: how many cards of each tier a wall gets (4 = tier IV or a rare).

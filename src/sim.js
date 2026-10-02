@@ -103,6 +103,7 @@ export function createBattle({ left, right, seed = 1 }) {
       if (tk.dmgPerGold) add += Math.min(tk.dmgPerGoldMax || 99, Math.floor(S.gold / tk.dmgPerGold));
       if (tk.missingDmg) add += Math.min(tk.missingDmgMax || 99, Math.floor(Math.max(0, S.maxHp - S.hp) / tk.missingDmg));
       if (tk.vsShieldAdd && E.shield > 0) add += tk.vsShieldAdd;
+      if (tk.coldDmg) add += Math.min(tk.coldDmgMax || 99, Math.floor(E.cold / tk.coldDmg));
       if (tk.lowCreature && low(S) && u.def.tags.includes('creature')) add += tk.lowCreature.dmg || 0;
       if (tk.execute && E.hp < E.maxHp * 0.5) pct += tk.execute;
       if (tk.lowDmgPct && low(S)) pct += tk.lowDmgPct;
@@ -145,8 +146,8 @@ export function createBattle({ left, right, seed = 1 }) {
     haste += sum(S, 'emptyHaste') * empty;
     if (u.def.burningHaste && sides[1 - u.side].burn > 0) haste += u.def.burningHaste;
     haste = Math.min(0.5 + (tk.hasteCap || 0), haste);
-    let heatNet = Math.max(-0.5, Math.min(0.5, (S.heat - S.cold) * 0.02));
-    if (u.def.noCold) heatNet = Math.max(0, heatNet);
+    let heatNet = Math.max(-0.5 - (opp(S).tk.coldCap || 0), Math.min(0.5, (S.heat - S.cold) * 0.02));
+    if (u.def.noCold || S.tk.coldImmune) heatNet = Math.max(0, heatNet);
     return Math.max(0.1, 1 + haste + heatNet + u.accel);
   }
   b.speed = speed;
@@ -343,7 +344,7 @@ export function createBattle({ left, right, seed = 1 }) {
       picks = [pool[0]];
     } else {
       pool.sort((a, c) => c.def.tier - a.def.tier || a.slot - c.slot);
-      picks = pool.slice(0, target === 'top2' ? 2 : 1);
+      picks = target === 'all' ? pool : pool.slice(0, target === 'top2' ? 2 : 1);
     }
     const mult = (has(S, 'freezeMult') ? 1.5 : 1) * (1 - (E.tk.freezeResist || 0));
     for (const v of picks) {
@@ -552,7 +553,9 @@ export function createBattle({ left, right, seed = 1 }) {
         for (const t of v.timers) t.prog -= a.s;
         return emit({ type: 'delay', src: null, target: ref(v), s: a.s });
       }
+      case 'detonateCold': return E.cold > 0 ? dealDamage(E, E.cold, { kind: 'dmg' }) : undefined;
       case 'freeze': case 'freezeAll': {
+        if (a.minCold && E.cold < a.minCold) return;
         const pool = freezable();
         if (!pool.length) return;
         const dur = a.dur * (1 - (E.tk.freezeResist || 0));
@@ -790,7 +793,7 @@ export function createBattle({ left, right, seed = 1 }) {
       const n = Math.floor(u.meals * se.perMeal);
       if (n <= 0) continue;
       E[se.k] += n;
-      E[se.k === 'burn' ? 'burnSrc' : 'poisonSrc'].set(u, n);
+      if (se.k === 'burn' || se.k === 'poison') E[se.k === 'burn' ? 'burnSrc' : 'poisonSrc'].set(u, n);
       emit({ type: 'status', side: E.idx, kind: se.k, amount: n, src: ref(u) });
     }
     for (const u of alive(S)) for (let i = 0; i < (u.def.startBless || 0); i++) blessOnce(u);

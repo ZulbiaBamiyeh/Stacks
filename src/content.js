@@ -45,6 +45,7 @@ export const INGREDIENTS = [
   { id: 'ember', name: 'Ember', day: 1, theme: 'Burn' },
   { id: 'coin', name: 'Coin', day: 1, theme: 'Gold' },
   { id: 'sand', name: 'Sand', day: 2, theme: 'Misses and desert creatures' },
+  { id: 'ice', name: 'Ice', day: 2, theme: 'Cold, freezes and shattering' },
   { id: 'mushroom', name: 'Mushroom', day: 3, theme: 'Poison spread, heal and poison hybrids' },
   { id: 'feather', name: 'Feather', day: 4, theme: 'Speed, haste, ignoring shield' },
   { id: 'crystal', name: 'Crystal', day: 5, theme: 'Freeze, magic, rare odds' },
@@ -320,6 +321,31 @@ U('fourLeafFairy', 'Four-Leaf Fairy', 4, 'fairy', 'At fight start, Bless 15 time
 U('sandworm', 'Sandworm', 4, 'scorpion', "Every 4s, consumes up to 8 of the enemy's Sand to deal 5 damage per stack, ignoring shield", { ...RARE, t: [[4, special('sandworm', { per: 5, max: 8 })]], tags: CREATURE });
 U('winterDjinn', 'Winter Djinn', 4, 'spirit', 'Your freezes last 50% longer. Each freeze charges your highest-tier unit 1s', { ...RARE, freezeMult: 1.5, onFreeze: [charge('top', 1)] });
 
+// ---------------------------------------------------------------- frost track: Cold, freezes, shatter, ice armour
+const ICE_FOOD = ['ice', 'stone'];
+U('snowSprite', 'Snow Sprite', 1, 'fairy', '2 damage and 1 Cold every 2s', { ...TRACK, t: [[2, dmg(2), cold(1)]] });
+U('iceImp', 'Ice Imp', 1, 'spirit', 'Freezes a random enemy unit for 0.6s every 3s', { ...TRACK, t: [[3, freeze('random', 0.6)]] });
+U('frostling', 'Frostling', 1, 'golem', '3 shield every 2.5s, +1 per meal eaten. Eats Ice or Stone. Evolves after 5 meals', { ...TRACK, t: [[2.5, shield(3)]], eats: { foods: ICE_FOOD, evolve: [5, 'glacierGolem'] } });
+U('glacierGolem', 'Glacier Golem', 3, 'golem', '4 shield and 1 Cold every 2s, shield +1 per meal eaten. Eats Ice or Stone. Evolves after 12 meals', { ...TRACK, t: [[2, shield(4), cold(1)]], eats: { foods: ICE_FOOD, evolve: [12, 'livingGlacier'] } });
+U('livingGlacier', 'Living Glacier', 4, 'golem', '5 shield and 2 Cold every 1.8s, shield +1 per meal eaten. At fight start the enemy gains Cold equal to half its meals. Still eats Ice or Stone', { ...TRACK, t: [[1.8, shield(5), cold(2)]], eats: { foods: ICE_FOOD }, startEnemy: { k: 'cold', perMeal: 0.5 } });
+U('penguin', 'Penguin', 1, 'wolf', '3 damage every 1.8s. +2 damage while the enemy has Cold', { ...TRACK, t: [[1.8, dmg(3, { ifEnemy: ['cold', 2] })]], tags: CREATURE });
+U('yetiCub', 'Yeti Cub', 1, 'wolf', '4 damage every 2.5s, +1 per 3 Cold on the enemy (max +4)', { ...TRACK, t: [[2.5, dmg(4, { perEnemy: ['cold', 3, 4] })]], tags: CREATURE });
+U('icicleThrower', 'Icicle Thrower', 2, 'person', '3 damage every 1.2s, +3 per frozen enemy unit', { ...TRACK, t: [[1.2, dmg(3, { perFrozen: 3 })]] });
+U('blizzardSprite', 'Blizzard Sprite', 2, 'fairy', '2 Cold every 2s. Freezes a random enemy unit for 0.6s every 4s', { ...TRACK, t: [[2, cold(2)], [4, freeze('random', 0.6)]] });
+U('iceWall', 'Ice Wall', 2, 'golem', '6 shield every 2.5s. Whenever an enemy hits your shield, the unit that acted last is frozen for 0.4s', { ...TRACK, t: [[2.5, shield(6)]], onShieldHit: [freeze('last', 0.4)] });
+U('frostBat', 'Frost Bat', 2, 'wolf', '2 damage and 1 Cold every 1s', { ...TRACK, t: [[1, dmg(2), cold(1)]], tags: CREATURE });
+U('snowballGolem', 'Snowball Golem', 2, 'golem', '4 damage every 2.5s, +1 per hit this fight (max +6). It just keeps rolling', { ...TRACK, t: [[2.5, dmg(4, { ramp: 6 })]] });
+U('penguinColony', 'Penguin Colony', 2, 'wolf', 'Every 2.5s, 3 penguins hit for 2 damage each, +2 each while the enemy has Cold', { ...TRACK, t: [[2.5, dmg(2, { hits: 3, ifEnemy: ['cold', 2] })]], tags: CREATURE });
+U('yeti', 'Yeti', 2, 'wolf', '7 damage every 2.5s, +1 per 3 Cold on the enemy (max +5). Starts each fight with 8 shield', { ...TRACK, t: [[2.5, dmg(7, { perEnemy: ['cold', 3, 5] })]], startShield: 8, tags: CREATURE });
+U('iceFisher', 'Ice Fisher', 2, 'person', '2 damage and 1 Cold every 1.5s. +1 gold per day', { t: [[1.5, dmg(2), cold(1)]], gold: 1 });
+U('iceScorpion', 'Ice Scorpion', 2, 'scorpion', '1 poison and 1 Cold every 2s. Poison +1 while the enemy has 6+ Cold', { t: [[2, poison(1, { perEnemy: ['cold', 6, 1] }), cold(1)]], tags: CREATURE });
+U('frostGiant', 'Frost Giant', 3, 'person', '10 damage and 3 Cold every 3s', { ...TRACK, t: [[3, dmg(10), cold(3)]] });
+U('cryomancer', 'Cryomancer', 3, 'person', '4 damage and 2 Cold every 2s. Damage +1 per 2 Cold on the enemy (max +8)', { ...TRACK, t: [[2, dmg(4, { perEnemy: ['cold', 2, 8] }), cold(2)]] });
+U('auroraSpirit', 'Aurora Spirit', 3, 'spirit', '4 heal and 2 Cold every 2.5s. Heal +2 per frozen enemy unit', { ...TRACK, t: [[2.5, heal(4, { perFrozen: 2 }), cold(2)]], main: 'heal' });
+U('shardstorm', 'Shardstorm', 3, 'thing', 'Every 1s, deals 1 damage plus 3 per frozen enemy unit. Freezes a random enemy unit for 0.6s every 3s', { ...TRACK, t: [[1, dmg(1, { perFrozen: 3 })], [3, freeze('random', 0.6)]] });
+U('mammoth', 'Mammoth', 3, 'wolf', "8 damage every 2.5s. Starts each fight with 20 shield. Cold can't slow it", { ...TRACK, t: [[2.5, dmg(8)]], startShield: 20, noCold: true, tags: CREATURE });
+U('hoarfrostDragon', 'Hoarfrost Dragon', 4, 'wolf', 'Every 4s, breathes frost: freezes every enemy unit for 0.8s and adds 3 Cold. 10 damage every 2.5s', { ...RARE, ...TRACK, t: [[2.5, dmg(10)], [4, freeze('all', 0.8), cold(3)]], tags: CREATURE });
+
 // ---------------------------------------------------------------- recipes
 // [a, b, result, rareId?, rareChancePct?]  (order doesn't matter)
 
@@ -404,13 +430,21 @@ const RECIPE_LIST = [
   ['ashCaller', 'moonstone', 'ashborn'], ['sandcaster', 'ember', 'glassmaker'], ['luckyFairy', 'stone', 'wishingWell'],
   ['gambler', 'coin', 'highRoller'], ['knight', 'wood', 'juggernaut'], ['dryad', 'ember', 'sunSprite'],
   ['shaman', 'ember', 'sunShaman'], ['groveSpirit', 'stone', 'oasisSpirit'],
+  // ice
+  ['villager', 'ice', 'iceFisher'], ['scorpion', 'ice', 'iceScorpion'], ['wolf', 'ice', 'frostBat'],
+  ['iceImp', 'ice', 'blizzardSprite'], ['iceImp', 'wood', 'icicleThrower'], ['snowSprite', 'stone', 'snowballGolem'],
+  ['snowSprite', 'feather', 'frostBat'], ['snowSprite', 'ice', 'blizzardSprite'], ['frostling', 'wood', 'iceWall'],
+  ['penguin', 'penguin', 'penguinColony'], ['penguin', 'ice', 'penguinColony'], ['yetiCub', 'ice', 'yeti'],
+  ['yeti', 'stone', 'mammoth'], ['yeti', 'ice', 'frostGiant'], ['snowballGolem', 'ice', 'frostGiant'],
+  ['icicleThrower', 'ice', 'cryomancer'], ['blizzardSprite', 'berry', 'auroraSpirit'], ['blizzardSprite', 'crystal', 'shardstorm'],
+  ['iceWall', 'stone', 'glacierGolem'], ['iceFisher', 'ice', 'cryomancer'],
 ];
 
 // ---------------------------------------------------------------- packs & tracks
 
 export const PACKS = {
   village: { id: 'village', name: 'Village Pack', price: 3, size: 3, pool: [['villager', 3], ['wood', 2], ['stone', 2], ['berry', 2], ['coin', 2]] },
-  wild: { id: 'wild', name: 'Wild Pack', price: 3, size: 3, pool: [['wolf', 3], ['fairy', 3], ['berry', 1], ['wood', 1], ['feather', 2], ['crystal', 1]] },
+  wild: { id: 'wild', name: 'Wild Pack', price: 3, size: 3, pool: [['wolf', 3], ['fairy', 3], ['berry', 1], ['wood', 1], ['feather', 2], ['crystal', 1], ['ice', 2]] },
   desert: { id: 'desert', name: 'Desert Pack', price: 3, size: 3, pool: [['scorpion', 3], ['bone', 2], ['ember', 2], ['mushroom', 2], ['sand', 2], ['moonstone', 1]] },
   flame: { id: 'flame', name: 'Flame Pack', price: 4, size: 3, track: 'flame', pool: [['flameImp', 3], ['salamander', 3], ['ember', 2]] },
   inferno: { id: 'inferno', name: 'Inferno Pack', price: 5, size: 3, track: 'flame', rare: 'ifrit', pool: [['cinderMaw', 3], ['ashMoth', 3], ['ember', 1], ['wood', 1]] },
@@ -422,6 +456,8 @@ export const PACKS = {
   treasury: { id: 'treasury', name: 'Treasury Pack', price: 5, size: 3, track: 'caravan', rare: 'dragonsHoard', pool: [['goldbug', 3], ['treasureChest', 3], ['coin', 2]] },
   quarry: { id: 'quarry', name: 'Quarry Pack', price: 4, size: 3, track: 'forge', pool: [['golem', 3], ['catapult', 3], ['stone', 2]] },
   foundry: { id: 'foundry', name: 'Foundry Pack', price: 5, size: 3, track: 'forge', rare: 'titan', pool: [['smith', 3], ['clockwork', 3], ['stone', 1]] },
+  frost: { id: 'frost', name: 'Frost Pack', price: 4, size: 3, track: 'frost', pool: [['snowSprite', 3], ['iceImp', 3], ['frostling', 2], ['ice', 2]] },
+  glacier: { id: 'glacier', name: 'Glacier Pack', price: 5, size: 3, track: 'frost', rare: 'hoarfrostDragon', pool: [['penguin', 3], ['yetiCub', 3], ['ice', 1], ['crystal', 1]] },
 };
 export const BASE_PACKS = ['village', 'wild', 'desert'];
 
@@ -431,6 +467,7 @@ export const TRACKS = [
   { id: 'grove', name: 'Grove', feed: 'berry', packs: ['grove', 'oasis'] },
   { id: 'caravan', name: 'Caravan', feed: 'coin', packs: ['caravan', 'treasury'] },
   { id: 'forge', name: 'Forge', feed: 'stone', packs: ['quarry', 'foundry'] },
+  { id: 'frost', name: 'Frost', feed: 'ice', packs: ['frost', 'glacier'] },
 ];
 export const TRACK_STEPS = [5, 12];
 export const TRACK_RARE_CHANCE = 0.1;

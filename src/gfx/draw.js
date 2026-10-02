@@ -268,6 +268,15 @@ export const GLYPHS = {
     for (let y = -24; y < 30; y += 12) { c.beginPath(); c.moveTo(0, y); c.lineTo(-16, y - 8); c.moveTo(0, y + 4); c.lineTo(16, y - 4); c.stroke(); }
     c.restore();
   },
+  ice(c) {
+    // a chunky ice cube with a frosty highlight
+    poly(c, [-34, -16, 0, -36, 36, -16, 36, 22, 0, 42, -34, 22]); fs(c, '#cdeefa');
+    poly(c, [-34, -16, 0, 4, 36, -16, 0, -36]); fs(c, '#eefaff');
+    c.beginPath(); c.moveTo(0, 4); c.lineTo(0, 42); c.stroke();
+    c.save(); c.globalAlpha = 0.6; c.strokeStyle = '#fff'; c.lineWidth = 5;
+    c.beginPath(); c.moveTo(-22, 2); c.lineTo(-22, 20); c.moveTo(-12, -22); c.lineTo(4, -28); c.stroke();
+    c.restore();
+  },
   crystal(c) {
     poly(c, [0, -46, 26, -20, 26, 22, 0, 46, -26, 22, -26, -20]); fs(c, '#a6dcf2');
     c.save(); c.globalAlpha = 0.45; c.lineWidth = 3.5;

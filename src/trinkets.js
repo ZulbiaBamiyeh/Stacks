@@ -168,6 +168,20 @@ T('eclipseCrown', 'moonstone', 5, 'Crown of the Eclipse', 'You start fights at 7
 T('nightmareLantern', 'moonstone', 5, 'Nightmare Lantern', 'At 75%, 50% and 25% HP: gain 12 shield and freeze every enemy unit for 0.8s.', { lastStand: [[0.75, { k: 'shield', n: 12 }, { k: 'freezeAll', dur: 0.8 }], [0.5, { k: 'shield', n: 12 }, { k: 'freezeAll', dur: 0.8 }], [0.25, { k: 'shield', n: 12 }, { k: 'freezeAll', dur: 0.8 }]] });
 T('selenesMirror', 'moonstone', 5, "Selene's Mirror", 'Below half HP, 45% of the attack damage you take is dealt back.', { lowReflect: 0.45 });
 
+// ---------------------------------------------------------------- ice: Cold and shatter
+T('snowflakeBrooch', 'ice', 2, 'Snowflake Brooch', 'The enemy starts each fight with 5 Cold.', { startEnemy: { cold: 5 } });
+T('icicleCharm', 'ice', 2, 'Icicle Charm', 'Your attacks deal 15% more while any enemy unit is frozen.', { frozenVuln: 0.15 });
+T('frostWard', 'ice', 2, 'Frost Ward', 'Start with 10 shield. Freezes on your units are 25% shorter.', { start: { shield: 10 }, freezeResist: 0.25 });
+T('chillwindHorn', 'ice', 3, 'Chillwind Horn', 'Every 4s, apply 2 Cold.', { every: [[4, { k: 'cold', n: 2 }]] });
+T('rimecrustMail', 'ice', 3, 'Rimecrust Mail', 'Start with 15 shield. The enemy starts with 3 Cold.', { start: { shield: 15 }, startEnemy: { cold: 3 } });
+T('permafrostSeal', 'ice', 3, 'Permafrost Seal', 'The enemy starts with 4 Cold, and Cold can slow them by up to 75% (normally 50%).', { startEnemy: { cold: 4 }, coldCap: 0.25 });
+T('glacialHeart', 'ice', 4, 'Glacial Heart', "Start with 15 shield. Cold can't slow your units.", { start: { shield: 15 }, coldImmune: true });
+T('avalancheDrum', 'ice', 4, 'Avalanche Drum', 'Every 6s, deal damage equal to the Cold on the enemy.', { every: [[6, { k: 'detonateCold' }]] });
+T('frostbiteFang', 'ice', 4, 'Frostbite Fang', 'Your attacks deal +1 damage per 4 Cold on the enemy (max +4).', { coldDmg: 4, coldDmgMax: 4 });
+T('heartOfWinter', 'ice', 5, 'Heart of Winter', 'The enemy starts with 10 Cold and gains 2 more every 3s.', { startEnemy: { cold: 10 }, every: [[3, { k: 'cold', n: 2 }]] });
+T('absoluteZero', 'ice', 5, 'Absolute Zero', 'Every 5s, if the enemy has 15+ Cold, freeze every enemy unit for 1s. Every 4s, apply 2 Cold.', { every: [[5, { k: 'freezeAll', dur: 1, minCold: 15 }], [4, { k: 'cold', n: 2 }]] });
+T('shatterglassCrown', 'ice', 5, 'Shatterglass Crown', 'Your attacks deal 40% more while any enemy unit is frozen, and each freeze deals 4 damage.', { frozenVuln: 0.4, onFreeze: [{ k: 'dmg', n: 4 }] });
+
 export const TRINKET_IDS = Object.keys(TRINKETS);
 
 // trinkets by resource and stack size

@@ -19,6 +19,7 @@ const ARCHETYPES = {
   frost: ['iceMage', 'frostFairy', 'trapper', 'snowQueen', 'warden', 'frostArcher', 'archmage', 'mage'],
   luck: ['fairyRing', 'fairyCourt', 'luckyFairy', 'gambler', 'rogue', 'wishSprite', 'cloverSprite', 'archer', 'scout'],
   sand: ['sandcaster', 'jackal', 'dustSprite', 'duneGuard', 'stormCaller', 'sandScorpion', 'duneStalker'],
+  ice: ['snowSprite', 'penguin', 'yetiCub', 'iceFisher', 'frostBat', 'icicleThrower', 'blizzardSprite', 'snowballGolem', 'penguinColony', 'yeti', 'frostGiant', 'cryomancer', 'mammoth', 'shardstorm'],
 };
 
 const NAMES = ['Bramble', 'Thistle', 'Oakhart', 'Pebbles', 'Mossbeard', 'Juniper', 'Wicklow', 'Fennimore', 'Quill', 'Hazel',
