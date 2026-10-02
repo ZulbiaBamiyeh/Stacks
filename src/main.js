@@ -29,7 +29,13 @@ let codex = loadCodex();
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY));
-    return s && s.v === R.SAVE_VERSION ? s : null;
+    if (!s || s.v !== R.SAVE_VERSION) return null;
+    // Drop cards and packs that no longer exist after a roster change.
+    s.table = s.table.filter((c) => CARDS[c.id]);
+    s.wall = s.wall.map((c) => (c && CARDS[c.id] ? c : null));
+    s.shop = s.shop.map((o) => (o && CARDS[o.id] ? o : null));
+    s.packs = s.packs.filter((p) => PACKS[p.pack]).map((p) => ({ ...p, cards: p.cards.filter((id) => CARDS[id]) })).filter((p) => p.cards.length);
+    return s;
   } catch { return null; }
 }
 function save() {
