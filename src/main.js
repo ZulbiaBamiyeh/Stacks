@@ -1031,7 +1031,7 @@ let lastBreakdown = null;
 const noFx = { hit() {}, set() {}, update() {}, reset() {} };
 const fortFx = { 0: noFx, 1: noFx };
 
-const fortHud = { 0: createFortressHud(scene, { x: 0, z: A.playerTowerZ }), 1: createFortressHud(scene, { x: 0, z: A.enemyTowerZ }) };
+const fortHud = { 0: createFortressHud(scene, { x: 0, z: A.playerTowerZ }), 1: createFortressHud(scene, { x: 0, z: A.enemyTowerZ, top: true }) };
 fortHud[0].hide();
 fortHud[1].hide();
 // Hits fly at the health bar, Bazaar style.

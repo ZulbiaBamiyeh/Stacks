@@ -250,7 +250,8 @@ function drawBuffs(st) {
 }
 
 // opts: { x, z } bar centre in world space.
-export function createFortressHud(scene, { x, z }) {
+// top: the enemy's bar (above its wall); ours sits below our wall.
+export function createFortressHud(scene, { x, z, top = false }) {
   const g = new THREE.Group();
   g.position.set(x, 0.06, z);
   scene.add(g);
@@ -266,19 +267,19 @@ export function createFortressHud(scene, { x, z }) {
     return mat;
   };
   const baseMat = layer(6);
-  const fx = createBarFx(BAR, z < 0 ? 3.7 : 0);
+  const fx = createBarFx(BAR, top ? 3.7 : 0);
   fx.mesh.renderOrder = 6.3;
   bar.add(fx.mesh);
   const topMat = layer(6.6);
   const buffMat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
   const buffs = new THREE.Mesh(new THREE.PlaneGeometry(BAR.w, BAR.w * (84 / 1152)), buffMat);
   buffs.rotation.x = -Math.PI / 2;
-  buffs.position.z = BAR.h / 2 + 0.42;
+  // the strip sits on the bar's far side from the wall: below ours, above theirs
+  buffs.position.z = (top ? -1 : 1) * (BAR.h / 2 + 0.42);
   buffs.renderOrder = 6;
   g.add(buffs);
   let buffKey = null;
   // Floating numbers lean away from the board so they never cover the wall.
-  const top = z < 0;
   const lift = top ? { y: 1.4, z: -0.7, py: 1.1, pz: -0.85 } : { y: 0.5, z: 1.15, py: 0.45, pz: 1.0 };
 
   const st = { hp: 0, shown: 0, max: 1, lag: 0, shield: 0, shieldShown: 0, flash: 0, healFlash: 0, shieldFlash: 0, poison: 0, burn: 0 };
