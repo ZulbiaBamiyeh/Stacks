@@ -5,7 +5,7 @@ import * as R from './run.js';
 import { createBattle, DT } from './sim.js';
 import { fetchGhost, submitGhost } from './ghosts.js';
 import { createWorld, L, CARD, wallX, arenaX } from './gfx/world.js';
-import { CardView, loadArt, setAnisotropy, artURL } from './gfx/card.js';
+import { CardView, loadArt, setAnisotropy, artURL, cardImageURL } from './gfx/card.js';
 import { createFx } from './gfx/fx.js';
 import { createFortressHud } from './gfx/fortress.js';
 import * as D from './gfx/draw.js';
@@ -453,8 +453,22 @@ stage.addEventListener('contextmenu', (e) => {
   ui.combos(card.id, { codex, owned, artURL, x: e.clientX, y: e.clientY });
 });
 // Any other click or Escape closes the combine popover.
-window.addEventListener('pointerdown', (e) => { if (e.button !== 2 && !e.target.closest?.('#combos')) ui.combos(null); }, true);
-window.addEventListener('keydown', (e) => { if (e.key === 'Escape') ui.combos(null); });
+const closeCombos = () => { ui.combos(null); ui.preview(null); };
+window.addEventListener('pointerdown', (e) => { if (e.button !== 2 && !e.target.closest?.('#combos')) closeCombos(); }, true);
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeCombos(); });
+// Hovering a row in the popover previews the card it makes.
+$('combos').addEventListener('mouseover', (e) => {
+  const row = e.target.closest('.cb-row');
+  if (!row) return;
+  const id = row.dataset.result;
+  const rare = row.dataset.rare;
+  const note = rare ? `<span class="rare">★</span> ${row.dataset.chance}% chance of a rare instead` : '';
+  const box = $('combos').getBoundingClientRect();
+  const rr = row.getBoundingClientRect();
+  const side = box.right + 300 > window.innerWidth ? 'left' : 'right';
+  ui.preview({ key: `c:${id}`, id, img: cardImageURL(id), label: row.dataset.known === '1' ? 'Combines into' : 'Combines into <span class="muted">(undiscovered)</span>', note }, side === 'left' ? box.left : box.right - 14, rr.top + rr.height / 2, { side });
+});
+$('combos').addEventListener('mouseleave', () => ui.preview(null));
 
 stage.addEventListener('wheel', (e) => {
   e.preventDefault();
@@ -531,6 +545,27 @@ function moveDrag(e) {
   const [html, bad] = dropHint(d, card);
   if (html !== lastHint) lastHint = html;
   ui.hint(html, e.clientX, e.clientY - 30, bad);
+  ui.preview(dropPreview(d), e.clientX, e.clientY, { avoid: $('hint') });
+}
+
+// The card a drop would produce: a combine's result, or the eater after its meal.
+function dropPreview(d) {
+  if (d.kind === 'card') {
+    const r = d.info;
+    const rareKnown = codex.has(`${r.a}+${r.b}!`);
+    const note = r.rare ? `<span class="rare">★</span> ${r.chance}% chance of ${rareKnown ? `<b>${ui.esc(CARDS[r.rare].name)}</b>` : 'a rare'} instead` : '';
+    return { key: `c:${r.result}`, id: r.result, img: cardImageURL(r.result), label: 'Combines into', note };
+  }
+  if (d.kind === 'eat') {
+    const inst = d.target.inst || { perm: 0, meals: 0 };
+    const meals = (inst.meals || 0) + 1;
+    const per = d.target.def.eats.per || 1;
+    const e = R.eatInfo(d.target.id, inst.meals || 0);
+    if (e.into && meals >= e.next) return { key: `e:${e.into}`, id: e.into, img: cardImageURL(e.into), label: 'Evolves into' };
+    const perm = (inst.perm || 0) + (meals % per === 0 ? 1 : 0);
+    return { key: `m:${d.target.id}:${perm}:${meals}`, id: d.target.id, img: cardImageURL(d.target.id, { perm, meals }), label: 'After this meal' };
+  }
+  return null;
 }
 
 function clearDragFx() {
@@ -539,6 +574,7 @@ function clearDragFx() {
   sellTile.hover = 0;
   shrineTile.hover = 0;
   ui.hint(null);
+  ui.preview(null);
 }
 
 function endDrag() {

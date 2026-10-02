@@ -16,6 +16,13 @@ const bodyMat = new THREE.MeshLambertMaterial({ color: D.INK });
 const art = new Map();
 // URL of a card's art (for DOM thumbnails), or null.
 export const artURL = (id) => art.get(id)?.src || null;
+// A card face as an image URL, for DOM previews. Cached per look.
+const faceURLs = new Map();
+export function cardImageURL(id, { perm = 0, meals = 0 } = {}) {
+  const key = `${id}:${perm}:${meals}`;
+  if (!faceURLs.has(key)) faceURLs.set(key, D.drawCard(CARDS[id], { perm, meals, art: art.get(id) }).toDataURL('image/png'));
+  return faceURLs.get(key);
+}
 export async function loadArt() {
   let manifest = {};
   try {

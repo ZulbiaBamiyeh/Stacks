@@ -78,7 +78,7 @@ export function createUI() {
         ? `${thumb(r.result)}<span class="cb-name">${esc(nameOf(r.result))}</span>`
         : `<i class="cb-thumb unknown">?</i><span class="cb-name muted">Tier ${ROMAN[CARDS[r.result].tier]}</span>`;
       const cost = combineCost(r.result);
-      return `<div class="cb-row${owned.has(other) ? ' have' : ''}">${thumb(other)}<span class="cb-name">${esc(nameOf(other))}</span><span class="cb-arrow">→</span>${res}${cost ? `<span class="cb-cost">${ico('coin')}${cost}</span>` : '<span class="cb-cost"></span>'}${r.rare && known ? `<span class="cb-rare" title="${r.chance}% rare">★</span>` : ''}</div>`;
+      return `<div class="cb-row${owned.has(other) ? ' have' : ''}" data-result="${r.result}" data-known="${known ? 1 : 0}"${r.rare ? ` data-rare="${r.rare}" data-chance="${r.chance}"` : ''}>${thumb(other)}<span class="cb-name">${esc(nameOf(other))}</span><span class="cb-arrow">→</span>${res}${cost ? `<span class="cb-cost">${ico('coin')}${cost}</span>` : '<span class="cb-cost"></span>'}${r.rare && known ? `<span class="cb-rare" title="${r.chance}% rare">★</span>` : ''}</div>`;
     }).join('') + (uses.length > MAX ? `<div class="cb-more">+${uses.length - MAX} more combinations</div>` : '');
     const from = [...RECIPES.values()].filter((r) => r.result === id);
     const madeOf = from.length ? `<div class="cb-foot">Made from ${from.map((r) => `${esc(nameOf(r.a))} + ${esc(nameOf(r.b))}`).join(' or ')}</div>` : '';
@@ -92,6 +92,29 @@ export function createUI() {
     const r = el.getBoundingClientRect();
     el.style.left = `${Math.min(window.innerWidth - r.width - 10, Math.max(10, x + 14))}px`;
     el.style.top = `${Math.max(10, Math.min(window.innerHeight - r.height - 24, y - 20))}px`;
+  }
+
+  // Floating card preview: what a combine or a meal turns into.
+  function preview(p, x = 0, y = 0, { side = 'right', avoid = null } = {}) {
+    const el = $('preview');
+    if (!p) { el.hidden = true; el.dataset.key = ''; return; }
+    if (el.dataset.key !== p.key) {
+      el.dataset.key = p.key;
+      const d = CARDS[p.id];
+      el.innerHTML = `<div class="pv-label">${p.label}</div><img class="pv-card" src="${p.img}" width="400" height="544" alt="${esc(d.name)}"><p class="pv-text">${esc(d.text)}</p>${p.note ? `<div class="pv-note">${p.note}</div>` : ''}`;
+    }
+    el.hidden = false;
+    const r = el.getBoundingClientRect();
+    let left = side === 'left' ? x - r.width - 18 : x + 26;
+    let top = y - r.height / 2;
+    // keep clear of the drag hint: sit to its right, or below it
+    const a = avoid && !avoid.hidden ? avoid.getBoundingClientRect() : null;
+    if (a) {
+      left = Math.max(left, a.right + 12);
+      if (left + r.width > window.innerWidth - 8) { left = x - r.width / 2; top = a.bottom + 12; }
+    }
+    el.style.left = `${Math.max(8, Math.min(window.innerWidth - r.width - 8, left))}px`;
+    el.style.top = `${Math.max(8, Math.min(window.innerHeight - r.height - 8, top))}px`;
   }
 
   function packInfo(packId, { price = true } = {}) {
@@ -338,5 +361,5 @@ export function createUI() {
       <div class="actions"><button class="big-btn ghost" data-close type="button">Cancel</button><button class="big-btn red" data-confirm-new type="button">Start new game</button></div>`);
   }
 
-  return { menu, confirmNewGame, hud, cardInfo, combos, packInfo, info, hint, toast, banner, hideBanner, modal, battleStart, battleUpdate, battleEnd, flashStatus, breakdown, setSpeed, setSound, ideas, help, ico, esc };
+  return { menu, confirmNewGame, hud, cardInfo, combos, preview, packInfo, info, hint, toast, banner, hideBanner, modal, battleStart, battleUpdate, battleEnd, flashStatus, breakdown, setSpeed, setSound, ideas, help, ico, esc };
 }
