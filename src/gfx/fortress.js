@@ -120,8 +120,8 @@ function drawTop(st) {
     c.strokeStyle = 'rgba(255,236,150,0.95)';
     c.lineWidth = 6;
     c.strokeRect(bx + 3, by + 3, sw - 6, bh - 6);
-    c.fillStyle = '#fff6cc';
-    c.fillRect(bx + sw - 5, by, 5, bh);
+    c.fillStyle = 'rgba(255,246,204,0.45)';
+    c.fillRect(bx + sw - 3, by, 3, bh);
     if (st.shieldFlash > 0) {
       c.globalAlpha = st.shieldFlash * 0.5;
       c.fillStyle = '#fffbe8';
@@ -129,8 +129,6 @@ function drawTop(st) {
       c.globalAlpha = 1;
     }
   }
-  c.fillStyle = 'rgba(0,0,0,0.22)';
-  for (let v = 50; v < st.max; v += 50) c.fillRect(bx + (bw * v) / st.max - 2, by + bh * 0.6, 4, bh * 0.4);
   const sh = c.createLinearGradient(0, by, 0, by + bh);
   sh.addColorStop(0, 'rgba(0,0,0,0.2)');
   sh.addColorStop(0.15, 'rgba(0,0,0,0)');
