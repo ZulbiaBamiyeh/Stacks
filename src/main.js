@@ -1503,6 +1503,7 @@ function frame(now) {
   world.render();
 
   if (save.pending && !drag) { save.pending = false; save(); }
+  updateTutorial();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
@@ -1510,14 +1511,46 @@ requestAnimationFrame(frame);
 $('loading').classList.add('gone');
 setTimeout(() => $('loading').remove(), 500);
 
-if (!S.history.length && !S.table.length && S.day === 1) {
-  let seen = false;
-  try { seen = localStorage.getItem('stackbrawl.seenHelp') === '1'; } catch { /* ignore */ }
-  if (!seen) {
-    try { localStorage.setItem('stackbrawl.seenHelp', '1'); } catch { /* ignore */ }
-    bindModal(ui.help());
-  } else ui.banner('Day 1<small>click your free pack to open it</small>');
+// ------------------------------------------------------------------ tutorial
+// Five hands-on steps; each waits for the player to do the thing.
+const TUT_KEY = 'stackbrawl.tutorial';
+const tutDone = () => { try { return localStorage.getItem(TUT_KEY) === 'done'; } catch { return true; } };
+const scr = (x, z) => world.toScreen(new THREE.Vector3(x, 0, z));
+const viewOf = (pred) => [...views.values()].find((v) => !v.dead && v.def && pred(v));
+const TUT = [
+  { key: 'open', text: 'Click your <b>pack</b> to open it.', at: () => { const v = [...packViews.values()][0]; return v && scr(v.pos.x, v.pos.z); }, done: () => !S.packs.length || (S.table.some((c) => c.id === 'villager') && S.table.some((c) => c.id === 'wood')) },
+  { key: 'combine', text: 'Drag the <b>Villager</b> onto the <b>Wood</b> to combine them.', at: () => { const v = viewOf((w) => w.id === 'villager'); return v && scr(v.pos.x, v.pos.z); }, done: () => S.discovered.length > 0 || owned().some((c) => CARDS[c.id].kind === 'unit' && CARDS[c.id].tier >= 2) },
+  { key: 'wall', text: 'Drag your unit onto the <b>wall</b>. Only units on the wall fight.', at: () => scr(wallX(0), L.wall.z), done: () => S.wall.some(Boolean) },
+  { key: 'shop', text: 'Each day you earn gold. Spend it on <b>packs</b> up here to grow your army.', at: () => { const t = packTiles[0]; return t && scr(t.group.position.x, t.group.position.z); }, next: true },
+  { key: 'fight', text: "Ready? Press <b>Fight!</b> Your wall battles another player's.", at: () => { const r = $('btn-fight').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, done: () => mode !== 'shop' },
+];
+const owned = () => [...S.table, ...S.wall.filter(Boolean)];
+let tut = null; // index into TUT while the tutorial runs
+function endTutorial() {
+  tut = null;
+  ui.coach(null);
+  try { localStorage.setItem(TUT_KEY, 'done'); } catch { /* ignore */ }
 }
+function updateTutorial() {
+  if (tut == null) return;
+  // jump past the furthest step the player has already done
+  for (let i = TUT.length - 1; i >= tut; i--) if (TUT[i].done?.()) { tut = i + 1; break; }
+  if (tut >= TUT.length) { endTutorial(); return; }
+  const step = TUT[tut];
+  const hide = drag || !$('modal').hidden || (mode !== 'shop' && step.key !== 'fight');
+  if (hide) { ui.coach(null); return; }
+  ui.coach({ ...step, n: tut + 1, of: TUT.length }, step.at());
+}
+$('coach').addEventListener('click', (e) => {
+  if (e.target.closest('[data-co-skip]')) endTutorial();
+  if (e.target.closest('[data-co-next]') && tut != null) { tut += 1; updateTutorial(); }
+});
+
+if (!S.history.length && S.day === 1 && !tutDone()) {
+  const el = ui.intro();
+  el.querySelector('[data-start-tut]').addEventListener('click', () => { ui.modal(null); tut = 0; });
+  el.querySelector('[data-skip-tut]').addEventListener('click', () => { ui.modal(null); endTutorial(); });
+} else if (!S.history.length && S.day === 1 && S.packs.length) ui.banner('Day 1<small>click your free pack to open it</small>');
 
 // Debug handle for the console.
 window.stackbrawl = { get state() { return S; }, get battle() { return B; }, views, world, R, refresh, fortHud };

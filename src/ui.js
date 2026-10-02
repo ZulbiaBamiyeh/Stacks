@@ -337,24 +337,52 @@ export function createUI() {
       <div class="actions"><button class="big-btn" data-close>Close</button></div>`, true);
   }
 
+  // First launch: one short card, then the hands-on tutorial.
+  function intro() {
+    return modal(`
+      <h2>Stackbrawl</h2>
+      <p>Build a wall of card units and fight other players' walls. Win <b>10</b> fights before you lose <b>3</b>.</p>
+      <div class="actions"><button class="big-btn ghost-dark" data-skip-tut>Skip tutorial</button><button class="big-btn red" data-start-tut>Start</button></div>`);
+  }
+
+  // Tutorial bubble: text near a screen point, with a pulsing ring on the target.
+  function coach(step, at) {
+    const el = $('coach');
+    const ring = $('coach-ring');
+    if (!step) { el.hidden = true; ring.hidden = true; el.dataset.key = ''; return; }
+    if (el.dataset.key !== step.key) {
+      el.dataset.key = step.key;
+      el.innerHTML = `<div class="co-n">${step.n}/${step.of}</div><p>${step.text}</p><div class="co-actions">${step.next ? '<button class="co-next" data-co-next>Got it</button>' : ''}<button class="co-skip" data-co-skip>Skip tutorial</button></div>`;
+    }
+    el.hidden = false;
+    ring.hidden = !at;
+    if (!at) {
+      el.style.left = '50%';
+      el.style.top = '96px';
+      el.style.transform = 'translateX(-50%)';
+      return;
+    }
+    ring.style.left = `${at.x}px`;
+    ring.style.top = `${at.y}px`;
+    const r = el.getBoundingClientRect();
+    const below = at.y < window.innerHeight * 0.45;
+    const x = Math.max(12, Math.min(window.innerWidth - r.width - 12, at.x - r.width / 2));
+    const y = below ? at.y + 54 : at.y - r.height - 54;
+    el.style.transform = 'none';
+    el.style.left = `${x}px`;
+    el.style.top = `${Math.max(64, Math.min(window.innerHeight - r.height - 12, y))}px`;
+  }
+
   function help() {
     return modal(`
       <h2>How to play</h2>
-      <p>Build a wall of units, then fight a ghost of another player's fortress. You earn 5 gold a day (+2 for a win), so choose what to buy and what to upgrade. First fortress to 0 HP loses. Reach <b>10 wins</b> before <b>3 losses</b>.</p>
-      <h4>Each day</h4>
-      <ul>
-        <li><b>Buy packs</b> from the top row, then click a pack on the table to pop its cards.</li>
-        <li><b>Combine</b>: drag a card onto another. If a recipe exists they merge for gold: 1 for a tier II result, 3 for tier III, 5 for tier IV or a rare. A ★ means a rare can drop.</li>
-        <li><b>Eaters</b> (cards with an "ate 0/5" tag) grow when you drop their food on them, and evolve after enough meals.</li>
-        <li><b>Wall</b>: drag units into the slots at the bottom. Only wall units fight. Slots grow on days 4 and 7.</li>
-        <li><b>Market</b> on the right sells singles. <b>Sell</b> cards top-left.</li>
-        <li><b>Shrine</b>: feed Ember, Bone, Berry, Coin, Stone or Ice to open a themed track of packs. The first track you open <b>binds</b> the shrine for the run and seals the rest, and the land changes to match.</li>
-        <li><b>Trinkets</b>: stack 2–5 of the same resource into a bundle, then drop it on the velvet rack to forge a random trinket of that size (bronze ×2 up to starmetal ×5). Up to 5 trinkets work in every fight.</li>
+      <ul class="tight">
+        <li><b>Packs</b> cost gold; click one on the table to open it.</li>
+        <li><b>Combine</b> by dragging a card onto another.</li>
+        <li><b>Wall</b> units fight. Press <b>Fight!</b> when ready.</li>
+        <li>Stack the same resource and drop it on the <b>rack</b> for a trinket. Feed the <b>shrine</b> to open a themed track.</li>
+        <li>Hover or right-click anything for details.</li>
       </ul>
-      <h4>Fights</h4>
-      <p>Units act on their own cooldowns. Shield absorbs damage. Burn deals its stacks every 1.5s, then halves. Poison deals its stacks every 3s and never fades; healing doesn't remove either. Freeze pauses a unit. From 45s, sudden death hurts both sides more and more.</p>
-      <h4>Controls</h4>
-      <p>Drag cards. Drag empty table to pan, scroll to zoom, double-click to reset the view. Hover anything for details.</p>
       <div class="actions"><button class="big-btn" data-close>Got it</button></div>`);
   }
 
@@ -378,5 +406,5 @@ export function createUI() {
       <div class="actions"><button class="big-btn ghost" data-close type="button">Cancel</button><button class="big-btn red" data-confirm-new type="button">Start new game</button></div>`);
   }
 
-  return { menu, confirmNewGame, hud, cardInfo, trinketInfo, combos, preview, packInfo, info, hint, toast, banner, hideBanner, modal, battleStart, battleUpdate, battleEnd, flashStatus, breakdown, setSpeed, setSound, ideas, help, ico, esc };
+  return { menu, confirmNewGame, intro, coach, hud, cardInfo, trinketInfo, combos, preview, packInfo, info, hint, toast, banner, hideBanner, modal, battleStart, battleUpdate, battleEnd, flashStatus, breakdown, setSpeed, setSound, ideas, help, ico, esc };
 }

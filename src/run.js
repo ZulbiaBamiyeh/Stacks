@@ -34,6 +34,8 @@ export function newRun(seed = randomSeed()) {
   // Day 1 starts with a free Village Pack on the table.
   s.gold += PACKS.village.price;
   buyPack(s, 'village');
+  // The free pack always teaches a first combine: Villager + Wood = Archer.
+  s.packs[0].cards = ['villager', 'wood', 'berry'];
   return s;
 }
 
