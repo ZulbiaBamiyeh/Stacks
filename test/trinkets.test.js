@@ -98,3 +98,14 @@ test('holding gold earns interest, +1 per 10 up to +3', () => {
     assert.equal(r.lines.find(([l]) => l === 'Interest')?.[1] || 0, want, `holding ${held}`);
   }
 });
+
+test('completing a track at 10 opens its second pack and gifts its rare', () => {
+  const s = run.newRun(9);
+  s.table = [];
+  let last;
+  for (let i = 0; i < 10; i++) { const c = run.makeInst(s, 'ember'); s.table.push(c); last = run.feed(s, c.uid); }
+  assert.equal(last.unlocked, 'inferno');
+  assert.equal(last.gift?.id, 'ifrit');
+  assert.ok(s.table.some((c) => c.id === 'ifrit'));
+  assert.ok(run.availablePacks(s).includes('inferno'));
+});

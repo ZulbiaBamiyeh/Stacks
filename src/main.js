@@ -1,6 +1,6 @@
 // Stackbrawl: game controller. Wires run state, the 3D table, input and fights.
 import * as THREE from 'three';
-import { CARDS, PACKS, TRACKS, RULES, wallSlots, fortressHp, eats } from './content.js';
+import { CARDS, PACKS, TRACKS, TRACK_STEPS, RULES, wallSlots, fortressHp, eats } from './content.js';
 import * as R from './run.js';
 import { TRINKETS, RACK_SLOTS, TK_BY, trinketSellValue } from './trinkets.js';
 import { TRINKET_METAL } from './gfx/draw.js';
@@ -83,7 +83,7 @@ function removeTile(entry) {
 }
 
 const sellTile = registerTile(world.makeTile(L.tile.w, L.tile.h, D.drawTile('sell'), { x: L.sellX, z: L.shopZ }), 'sell');
-const shrineCanvas = () => D.drawTile('shrine', { tracks: TRACKS.map((t) => ({ ...t, fed: S.fed[t.id], sealed: !!S.bound && S.bound !== t.id, bound: S.bound === t.id })) });
+const shrineCanvas = () => D.drawTile('shrine', { steps: TRACK_STEPS, tracks: TRACKS.map((t) => ({ ...t, fed: S.fed[t.id], sealed: !!S.bound && S.bound !== t.id, bound: S.bound === t.id })) });
 const shrineTile = registerTile(world.makeTile(L.shrine.w, L.shrine.h, shrineCanvas(), { x: L.shrine.x, z: L.shrine.z }), 'shrine');
 const rr = L.market.reroll;
 const rerollTile = registerTile(world.makeTile(rr.w, rr.h, D.drawTile('reroll'), { x: rr.x, z: rr.z }), 'reroll');
@@ -462,8 +462,10 @@ function dropHint(d, v) {
     if (!t) return ['The shrine wants Ember, Bone, Berry, Coin, Stone or Ice', true];
     if (S.bound && S.bound !== t.id) return [`Sealed: the shrine is bound to ${TRACKS.find((x) => x.id === S.bound).name}`, true];
     const n = S.fed[t.id] + (v.inst?.stack || 1);
-    const commit = !S.bound && S.fed[t.id] < 5 && n >= 5 ? ' · <b>binds the shrine</b>: other tracks seal' : '';
-    return [`Feed the ${t.name} track (${Math.min(n, 12)}/${n >= 5 ? 12 : 5})${commit}`, false];
+    const [s1, s2] = TRACK_STEPS;
+    const commit = !S.bound && S.fed[t.id] < s1 && n >= s1 ? ' · <b>binds the shrine</b>: other tracks seal' : '';
+    const gift = S.fed[t.id] < s2 && n >= s2 ? ` · <b>completes it</b>: free ${ui.esc(CARDS[PACKS[t.packs[1]].rare].name)}!` : '';
+    return [`Feed the ${t.name} track (${Math.min(n, s2)}/${n >= s1 ? s2 : s1})${commit}${gift}`, false];
   }
   if (d.kind === 'bad') return [d.why, true];
   if (d.kind === 'slot') return [S.wall[d.slot] && S.wall[d.slot] !== v.inst ? 'Swap places' : 'Place on the wall', false];
@@ -576,13 +578,13 @@ function shrineInfo() {
     const [a, b] = t.packs.map((id) => PACKS[id]);
     const step = (pack, need) => (n >= need ? `<span class="ok">✓ ${ui.esc(pack.name)}</span>` : `<span class="muted">${ui.esc(pack.name)} at ${need}</span>`);
     if (S.bound && S.bound !== t.id) return `<div class="shr-row none">${ui.ico(t.feed)}<span class="shr-name"><b>${t.name}</b> · sealed</span></div>`;
-    return `<div class="shr-row${n ? '' : ' none'}">${ui.ico(t.feed)}<span class="shr-name"><b>${t.name}</b> · ${n} ${ui.esc(CARDS[t.feed].name)} fed</span><span class="shr-steps">${step(a, 5)} ${step(b, 12)}</span></div>`;
+    return `<div class="shr-row${n ? '' : ' none'}">${ui.ico(t.feed)}<span class="shr-name"><b>${t.name}</b> · ${n} ${ui.esc(CARDS[t.feed].name)} fed</span><span class="shr-steps">${step(a, TRACK_STEPS[0])} ${step(b, TRACK_STEPS[1])} ${n >= TRACK_STEPS[1] ? '' : `<span class="muted">· ${ui.esc(CARDS[b.rare].name)} free at ${TRACK_STEPS[1]}</span>`}</span></div>`;
   }).join('');
   const bound = TRACKS.find((t) => t.id === S.bound);
   const note = bound
     ? `<p class="muted small">Bound to <b>${bound.name}</b> for this run: the other tracks are sealed, and the land wears the ${bound.name} look.</p>`
     : '<p class="muted small"><b>Choose carefully:</b> the first track you open binds the shrine for the rest of the run and seals the others. The land changes to match.</p>';
-  return `<h3>Shrine</h3><p>Drop ingredients (or whole bundles) here. 5 opens a track's first pack, 12 its second, with a 10% rare.</p><div class="shr-list">${rows}</div>${note}`;
+  return `<h3>Shrine</h3><p>Drop ingredients (or whole bundles) here. ${TRACK_STEPS[0]} opens a track's first pack. ${TRACK_STEPS[1]} opens its second and hands you the track's rare.</p><div class="shr-list">${rows}</div>${note}`;
 }
 
 function updateHover(cx, cy) {
@@ -791,13 +793,19 @@ function endDrag() {
     });
     card.scaleGoal = 0.2;
     sfx.coin();
-    if (res.unlocked) {
-      ui.toast(`${PACKS[res.unlocked].name} unlocked! The land changes…`, 'good', 'bless');
-      sfx.rare();
+    if (res.gift) {
       later(0.5, () => {
-        world.setTheme(S.theme);
-        for (let i = 0; i < 6; i++) fx.sparkles(new THREE.Vector3(-8 + i * 3.2, 0.4, (i % 2 ? -3 : 3)), { n: 14, spread: 2.5 });
+        ui.toast(`The shrine grants you <b>${ui.esc(CARDS[res.gift.id].name)}</b>!`, 'good', 'bless');
+        const v = views.get(res.gift.uid);
+        if (v) { v.place(L.shrine.x, L.shrine.z); v.kick(0.3); fx.sparkles(v.pos.clone().setY(0.4), { n: 24, color: '#ffe9a8' }); }
       });
+    }
+    if (res.unlocked) {
+      ui.toast(`${PACKS[res.unlocked].name} unlocked!${res.unlocked === res.track.packs[0] ? ' The land changes…' : ''}`, 'good', 'bless');
+      sfx.rare();
+      // sweep the new land in (refresh's own setTheme then finds it already set)
+      world.setTheme(S.theme, { animate: true });
+      later(0.3, () => sfx.whoosh());
       later(0.4, () => { const t = packTiles[packTiles.length - 1]; if (t) fx.sparkles(t.group.position.clone().setY(0.3), { n: 18 }); });
     }
     refresh();
@@ -1501,6 +1509,7 @@ function frame(now) {
   fortHud[0].update(dt, simRate);
   fortHud[1].update(dt, simRate);
   fx.update(dt);
+  world.updateTheme(dt);
   world.updateCamera(dt);
   world.render();
 

@@ -541,7 +541,9 @@ export const TRACKS = [
   { id: 'forge', name: 'Forge', feed: 'stone', packs: ['quarry', 'foundry'] },
   { id: 'frost', name: 'Frost', feed: 'ice', packs: ['frost', 'glacier'] },
 ];
-export const TRACK_STEPS = [5, 12];
+// fed counts that open a track's first and second pack; the second also
+// gives the track's rare for free
+export const TRACK_STEPS = [5, 10];
 export const TRACK_RARE_CHANCE = 0.1;
 
 // ---------------------------------------------------------------- rules

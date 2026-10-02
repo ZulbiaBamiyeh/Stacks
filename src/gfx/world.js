@@ -147,20 +147,88 @@ export function createWorld(container) {
 
   // Repaint the land for a theme (meadow, flame, tomb, grove, caravan, forge, frost).
   let theme = 'meadow';
-  function setTheme(next) {
-    if (!D.THEMES[next] || next === theme) return;
-    theme = next;
-    const swap = (mat, cv, repeat) => {
-      const old = mat.map;
-      mat.map = tex(cv, { repeat, aniso: anisotropy });
-      mat.needsUpdate = true;
-      old?.dispose();
-    };
-    swap(ground.material, D.drawThemeGround(next), [16, 16]);
-    swap(home.userData.top, D.drawThemeBoard(next), home.userData.repeat);
-    swap(arena.userData.top, D.drawThemeBoard(next, { arena: true }), arena.userData.repeat);
+  renderer.localClippingEnabled = true;
+  const swapMap = (mat, cv, repeat) => {
+    const old = mat.map;
+    mat.map = tex(cv, { repeat, aniso: anisotropy });
+    mat.needsUpdate = true;
+    old?.dispose();
+  };
+  function applyTheme(next, maps) {
+    swapMap(ground.material, maps.ground, [16, 16]);
+    swapMap(home.userData.top, maps.home, home.userData.repeat);
+    swapMap(arena.userData.top, maps.arena, arena.userData.repeat);
     home.userData.side.color.set(D.THEMES[next].side);
     arena.userData.side.color.set(D.THEMES[next].side);
+  }
+
+  // The new land washes over the old one from the shrine's corner: a
+  // clipping plane sweeps across copies of the board and forest painted in
+  // the new theme, led by a band of light.
+  const SWEEP_DIR = new THREE.Vector3(1, 0, -0.7).normalize(); // toward the shrine
+  const SWEEP_FROM = -17;
+  const SWEEP_TO = 17;
+  let sweep = null;
+  function finishSweep() {
+    if (!sweep) return;
+    applyTheme(sweep.next, sweep.maps);
+    for (const m of [...sweep.overlays, sweep.edge, sweep.glow]) {
+      scene.remove(m);
+      m.geometry.dispose();
+      m.material.map?.dispose();
+      m.material.dispose();
+    }
+    sweep = null;
+  }
+  function setTheme(next, { animate = false } = {}) {
+    if (!D.THEMES[next] || next === theme) return;
+    theme = next;
+    const maps = { ground: D.drawThemeGround(next), home: D.drawThemeBoard(next), arena: D.drawThemeBoard(next, { arena: true }) };
+    if (sweep) finishSweep();
+    if (!animate) { applyTheme(next, maps); return; }
+    const plane = new THREE.Plane(SWEEP_DIR.clone(), SWEEP_FROM);
+    const overlay = (w, d, cv, repeat, x, y, z) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshLambertMaterial({ map: tex(cv, { repeat, aniso: anisotropy }), clippingPlanes: [plane] }));
+      m.rotation.x = -Math.PI / 2;
+      m.position.set(x, y, z);
+      m.receiveShadow = true;
+      m.renderOrder = -1;
+      scene.add(m);
+      return m;
+    };
+    const B2 = L.board;
+    const overlays = [
+      overlay(240, 240, maps.ground, [16, 16], 0, -0.315, -10),
+      overlay(B2.x1 - B2.x0, B2.z1 - B2.z0, maps.home, home.userData.repeat, 0, 0.0012, 0),
+      overlay(B2.x1 - B2.x0, A.z1 - A.z0, maps.arena, arena.userData.repeat, 0, 0.0012, A.cz),
+    ];
+    // the leading edge: a bright core line and a soft wide glow
+    const band = (width, color, opacity) => {
+      const geo = new THREE.PlaneGeometry(90, width);
+      geo.rotateX(-Math.PI / 2);
+      const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending }));
+      // long axis along the front, perpendicular to the sweep direction
+      m.rotation.y = Math.atan2(-SWEEP_DIR.x, -SWEEP_DIR.z);
+      m.renderOrder = 8;
+      scene.add(m);
+      return m;
+    };
+    const accent = { flame: '#ff9a4a', tomb: '#c9b8ff', grove: '#c8ff9a', caravan: '#ffe27a', forge: '#ffc28a', frost: '#cdefff', meadow: '#fff6c8' }[next] || '#fff6c8';
+    const edge = band(0.18, '#ffffff', 0.85);
+    const glow = band(1.6, accent, 0.4);
+    sweep = { t: 0, dur: 2.4, plane, overlays, edge, glow, maps, next };
+  }
+  function updateTheme(dt) {
+    if (!sweep) return;
+    sweep.t += dt;
+    const u = Math.min(1, sweep.t / sweep.dur);
+    const k = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+    const c = SWEEP_FROM + (SWEEP_TO - SWEEP_FROM) * k;
+    sweep.plane.constant = c;
+    // the plane's surface (n·p + c = 0) lies at p = -c n
+    for (const m of [sweep.edge, sweep.glow]) m.position.set(-c * SWEEP_DIR.x, 0.03, -c * SWEEP_DIR.z);
+    sweep.glow.material.opacity = 0.4 * Math.sin(Math.PI * u) + 0.1;
+    if (u >= 1) finishSweep();
   }
 
   // Arena midline: a faint dashed ink line between the two walls.
@@ -401,7 +469,7 @@ export function createWorld(container) {
   return {
     THREE, renderer, scene, camera, view, anisotropy, arena,
     towers: { home: homeTower, player: arenaPlayerTower, enemy: arenaEnemyTower },
-    frame, resize, updateCamera, pointerRay, groundPoint, toScreen, makeTile, makeDecal, outlined, setTheme,
+    frame, resize, updateCamera, pointerRay, groundPoint, toScreen, makeTile, makeDecal, outlined, setTheme, updateTheme,
     render: () => renderer.render(scene, camera),
   };
 }

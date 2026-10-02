@@ -190,7 +190,13 @@ export function feed(s, uid) {
   // Opening a track binds the shrine to it for the rest of the run, and the
   // land takes on its look.
   if (unlocked) { s.theme = track.id; s.bound = track.id; }
-  return { ok: true, track, count: n, unlocked };
+  // Completing a track: the shrine hands over its rare.
+  let gift = null;
+  if (crossed(TRACK_STEPS[1]) && PACKS[track.packs[1]].rare) {
+    gift = makeInst(s, PACKS[track.packs[1]].rare);
+    s.table.push(gift);
+  }
+  return { ok: true, track, count: n, unlocked, gift };
 }
 
 // ---------------------------------------------------------------- combining

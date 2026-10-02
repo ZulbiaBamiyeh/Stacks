@@ -895,7 +895,8 @@ export function drawTile(kind, opts = {}) {
       const cx = 108 + (i % cols) * 192;
       const cy = 148 + Math.floor(i / cols) * 132;
       const R = 42;
-      const lvl = t.fed >= 12 ? 2 : t.fed >= 5 ? 1 : 0;
+      const [s1, s2] = opts.steps || [5, 10];
+      const lvl = t.fed >= s2 ? 2 : t.fed >= s1 ? 1 : 0;
       if (lvl) {
         const halo = ctx.createRadialGradient(cx, cy, R * 0.6, cx, cy, R * 1.7);
         halo.addColorStop(0, lvl === 2 ? 'rgba(242,198,74,0.55)' : 'rgba(159,211,138,0.45)');
@@ -915,12 +916,12 @@ export function drawTile(kind, opts = {}) {
       ctx.lineWidth = 9;
       ctx.strokeStyle = 'rgba(255,255,255,0.12)';
       ctx.beginPath(); ctx.arc(cx, cy, R + 2, 0, Math.PI * 2); ctx.stroke();
-      const p = Math.min(1, t.fed / 12);
+      const p = Math.min(1, t.fed / s2);
       if (p > 0) {
         ctx.strokeStyle = lvl === 2 ? '#f2c64a' : lvl === 1 ? '#9fd38a' : '#f6efdc';
         ctx.beginPath(); ctx.arc(cx, cy, R + 2, a0, a0 + p * Math.PI * 2); ctx.stroke();
       }
-      const an = a0 + (5 / 12) * Math.PI * 2;
+      const an = a0 + (s1 / s2) * Math.PI * 2;
       ctx.strokeStyle = '#1f1b18';
       ctx.lineWidth = 4;
       ctx.lineCap = 'butt';
@@ -939,7 +940,7 @@ export function drawTile(kind, opts = {}) {
       ctx.fillStyle = t.sealed ? 'rgba(255,255,255,0.35)' : lvl ? '#fff' : 'rgba(255,255,255,0.8)';
       ctx.font = font(22, 900);
       ctx.textAlign = 'center';
-      ctx.fillText(t.sealed ? t.name : `${t.name} ${t.fed}/${lvl ? 12 : 5}`, cx, cy + R + 28);
+      ctx.fillText(t.sealed ? t.name : `${t.name} ${Math.min(t.fed, s2)}/${lvl ? s2 : s1}`, cx, cy + R + 28);
       if (lvl === 2) glyph(ctx, 'bless', cx + R - 2, cy - R + 4, 26);
       if (t.bound) {
         ctx.fillStyle = '#f2c64a';
