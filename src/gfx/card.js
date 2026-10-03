@@ -24,6 +24,9 @@ export function cardImageURL(id, { perm = 0, meals = 0, stars = 0 } = {}) {
   if (!faceURLs.has(key)) faceURLs.set(key, (TRINKETS[id] ? D.drawTrinket(TRINKETS[id], { art: art.get(id) }) : D.drawCard(CARDS[id], { perm, meals, stars, art: art.get(id) })).toDataURL('image/png'));
   return faceURLs.get(key);
 }
+// The build stamps module URLs with ?v=; reuse it so redrawn art isn't served stale from cache.
+const ART_V = new URL(import.meta.url).searchParams.get('v');
+
 export async function loadArt() {
   let manifest = {};
   try {
@@ -35,7 +38,7 @@ export async function loadArt() {
     const img = new Image();
     img.onload = () => { art.set(id, img); resolve(); };
     img.onerror = () => resolve();
-    img.src = `art/cards/${file}`;
+    img.src = `art/cards/${file}${ART_V ? `?v=${ART_V}` : ''}`;
   })));
 }
 
