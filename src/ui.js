@@ -98,7 +98,7 @@ export function createUI() {
     const madeOf = from.length ? `<div class="cb-foot">Made from ${from.map((r) => `${esc(nameOf(r.a))} + ${esc(nameOf(r.b))}`).join(' or ')}</div>` : '';
     const eats = d.eats ? `<div class="cb-foot">Eats ${d.eats.foods.map((f) => `${ico(f)}${esc(nameOf(f))}`).join(' ')}${d.eats.evolve ? ` · evolves at ${d.eats.evolve[0]}` : ''}</div>` : '';
     const eaters = d.kind === 'ingredient' ? Object.values(CARDS).filter((c) => c.eats?.foods.includes(id)) : [];
-    const forge = d.kind === 'ingredient' && TK_BY[id] ? `<div class="cb-foot">Bundle ×2–×5 on the rack: ${[2, 3, 4, 5].map((n) => `${TRINKET_METAL[n].name.toLowerCase()} ×${n}`).join(', ')} trinkets</div>` : '';
+    const forge = d.kind === 'ingredient' && TK_BY[id] ? `<div class="cb-foot">Bundle ×2–×5 on the rack: ${[2, 3, 4, 5].map((n) => `${TRINKET_METAL[n].name.toLowerCase()} ×${n}`).join(', ')} trinkets (you pick 1 of 3). More on a trinket upgrades it.</div>` : '';
     const fedTo = eaters.length ? `<div class="cb-foot">Food for ${eaters.map((c) => esc(c.name)).join(', ')}</div>` : '';
     el.innerHTML = `<div class="cb-head">${thumb(id, 'big')}<div><b>${esc(d.name)}</b><span class="muted">${uses.length ? `combines with ${uses.length}` : 'no combinations'}</span></div></div>${rows ? `<div class="cb-list">${rows}</div>` : ''}${eats}${fedTo}${forge}${madeOf}`;
     el.hidden = false;
@@ -149,7 +149,23 @@ export function createUI() {
     const t = TRINKETS[id];
     const M = TRINKET_METAL[t.size];
     const right = sell != null ? `<span class="sell muted">sells ${ico('coin')} ${sell}</span>` : '';
-    return `<h3>${esc(t.name)}</h3><span class="tag">${M.name} trinket · ${ico(t.res)} ×${t.size}</span>${right}<p>${esc(t.text)}</p><p class="muted small">Trinkets on the rack work in every fight. Drag to rearrange, or onto Sell.</p>`;
+    return `<h3>${esc(t.name)}</h3><span class="tag">${M.name} trinket · ${ico(t.res)} ×${t.size}</span>${right}<p>${esc(t.text)}</p>${t.size < 5 ? `<p class="small">Drop more ${ico(t.res)} ${esc(nameOf(t.res))} on it to upgrade: pick a trinket of the next tier.</p>` : ''}<p class="muted small">Trinkets on the rack work in every fight. Drag to rearrange, or onto Sell.</p>`;
+  }
+
+  // Forging or upgrading a trinket: pick one of the options.
+  function trinketPick({ title, sub = '', options, cost = 0 }) {
+    const cards = options.map((o) => `
+      <button class="tk-opt" data-pick="${o.id}" type="button">
+        <img src="${o.img}" width="400" height="544" alt="">
+        <b>${esc(TRINKETS[o.id].name)}</b>
+        <span>${esc(TRINKETS[o.id].text)}</span>
+        ${o.have ? '<em>already on your rack</em>' : ''}
+      </button>`).join('');
+    return modal(`
+      <h2>${title}</h2>
+      <p class="muted">${sub}${cost ? ` · ${ico('coin')} ${cost}` : ''}</p>
+      <div class="tk-pick">${cards}</div>
+      <div class="actions"><button class="big-btn ghost-dark" data-close type="button">Cancel</button></div>`, true);
   }
 
   function packInfo(packId, { price = true } = {}) {
@@ -427,5 +443,5 @@ export function createUI() {
       <div class="actions"><button class="big-btn ghost" data-close type="button">Cancel</button><button class="big-btn red" data-confirm-new type="button">Start new game</button></div>`);
   }
 
-  return { menu, confirmNewGame, intro, coach, hud, cardInfo, trinketInfo, combos, preview, packInfo, info, hint, toast, banner, hideBanner, modal, battleStart, battleUpdate, battleEnd, flashStatus, breakdown, setSpeed, setSound, ideas, help, ico, esc };
+  return { menu, confirmNewGame, intro, coach, hud, cardInfo, trinketInfo, trinketPick, combos, preview, packInfo, info, hint, toast, banner, hideBanner, modal, battleStart, battleUpdate, battleEnd, flashStatus, breakdown, setSpeed, setSound, ideas, help, ico, esc };
 }

@@ -184,3 +184,31 @@ test('a Caravan-bound shrine pays a daily wage', () => {
   const r = run.finishFight(s, false, 'x');
   assert.ok(r.lines.some(([l, n]) => l === 'Caravan shrine' && n === 2));
 });
+
+test('forging takes the pick, and more of the resource upgrades a trinket a tier', () => {
+  const s = run.newRun(12);
+  s.table = []; s.gold = 50;
+  const bundleOf = (res, n) => { const c = run.makeInst(s, res, { stack: n }); s.table.push(c); return c; };
+  const opts = run.forgeOptions('ember', 2);
+  assert.equal(opts.length, 3);
+  assert.ok(run.forge(s, bundleOf('ember', 2).uid, 0, opts[2]).ok);
+  assert.equal(s.trinkets[0].id, opts[2]);
+  // one more ember: x3, pick from the x3 ember trinkets, pay the cost difference
+  const one = bundleOf('ember', 1);
+  const info = run.upgradeInfo(s, one.uid, 0);
+  assert.equal(info.size, 3);
+  assert.deepEqual(info.options, run.forgeOptions('ember', 3));
+  const g = s.gold;
+  const up = run.upgradeTrinket(s, one.uid, 0, info.options[1]);
+  assert.ok(up.ok);
+  assert.equal(s.trinkets[0].id, info.options[1]);
+  assert.equal(s.gold, g - info.cost);
+  assert.ok(!s.table.includes(one));
+  // a x2 bundle jumps two tiers, capped at x5
+  const two = bundleOf('ember', 2);
+  assert.equal(run.upgradeInfo(s, two.uid, 0).size, 5);
+  assert.ok(run.upgradeTrinket(s, two.uid, 0).ok);
+  assert.equal(run.upgradeInfo(s, bundleOf('ember', 1).uid, 0).ok, false);
+  // a different resource doesn't upgrade it
+  assert.equal(run.upgradeInfo(s, bundleOf('bone', 1).uid, 0), null);
+});

@@ -202,6 +202,7 @@ function syncTrinkets() {
       v.place(rackX(i), L.rack.z);
       trinketViews.set(t.uid, v);
     }
+    if (v.id !== t.id) v.setFace(t.id); // upgraded in place
     v.trinket = t;
     v.rackSlot = i;
     if (mode !== 'battle' && mode !== 'intro' && mode !== 'outro' && !v.dragging && !v.busy && !v.flight) v.moveTo(rackX(i), L.rack.z);
@@ -407,6 +408,9 @@ function evalDrop(v, x, z) {
     const slot = rackSlotAt(x, z);
     if (slot >= 0 && v.market == null) {
       if (def.kind !== 'ingredient') return { kind: 'bad', why: 'Only bundles of one resource can be forged into trinkets' };
+      // more of a trinket's own resource raises its tier
+      const up = R.upgradeInfo(S, v.inst.uid, slot);
+      if (up) return up.ok ? { kind: 'tup', slot, ...up, res: v.id } : { kind: 'bad', why: up.reason };
       if (stackOf(v) < 2) return { kind: 'bad', why: 'Stack 2 or more of the same resource first' };
       return { kind: 'forge', slot, size: stackOf(v), res: v.id, replaces: S.trinkets[slot] };
     }
@@ -462,7 +466,11 @@ function dropHint(d, v) {
     const cost = R.forgeCost(S, d.size);
     const broke = S.gold < cost;
     const rep = d.replaces ? ` · replaces <b>${ui.esc(TRINKETS[d.replaces.id].name)}</b>` : '';
-    return [`Forge a ${TRINKET_METAL[d.size].name.toLowerCase()} trinket · ${ui.ico('coin')} ${cost}${broke ? ' (not enough gold)' : ''}${rep}`, broke];
+    return [`Forge a ${TRINKET_METAL[d.size].name.toLowerCase()} trinket: choose 1 of 3 · ${ui.ico('coin')} ${cost}${broke ? ' (not enough gold)' : ''}${rep}`, broke];
+  }
+  if (d.kind === 'tup') {
+    const broke = S.gold < d.cost;
+    return [`Upgrade to ${TRINKET_METAL[d.size].name.toLowerCase()} ×${d.size}: choose 1 of 3 · ${ui.ico('coin')} ${d.cost}${broke ? ' (not enough gold)' : ''}`, broke];
   }
   if (d.kind === 'tmove') return [S.trinkets[d.slot] && S.trinkets[d.slot] !== v.trinket ? 'Swap trinkets' : 'Move trinket', false];
   if (d.kind === 'tsell') return [`Sell for ${ui.ico('coin')} ${trinketSellValue(v.trinket)}`, false];
@@ -668,9 +676,9 @@ function pan(e) {
 function bundleNote(card) {
   if (card.def?.kind !== 'ingredient') return '';
   const n = card.inst?.stack || 1;
-  if (n < 2) return `<p class="muted">Stack ${ui.esc(card.def.name)} on ${ui.esc(card.def.name)} to make a bundle (up to ×5), then forge it into a trinket on the rack.</p>`;
+  if (n < 2) return `<p class="muted">Stack ${ui.esc(card.def.name)} on ${ui.esc(card.def.name)} to make a bundle (up to ×5), then forge it into a trinket on the rack. A single one upgrades a ${ui.esc(card.def.name)} trinket.</p>`;
   const names = TK_BY[card.id][n].map((id) => `<b>${ui.esc(TRINKETS[id].name)}</b>`).join(', ');
-  return `<p><b>Bundle ×${n}.</b> Drop it on the trinket rack to forge one of ${names} (${ui.ico('coin')} ${R.forgeCost(S, n)}).</p>`;
+  return `<p><b>Bundle ×${n}.</b> Drop it on an empty rack slot to forge your pick of ${names} (${ui.ico('coin')} ${R.forgeCost(S, n)}), or on a ${ui.esc(card.def.name)} trinket to upgrade it.</p>`;
 }
 
 // Shrine hover: what each bowl has been fed and what it opens.
@@ -761,9 +769,9 @@ function dropPreview(d) {
     const mult = starMult(CARDS[inst.id], d.stars);
     return { key: `s:${inst.id}:${d.stars}`, id: inst.id, img: cardImageURL(inst.id, { perm: inst.perm, meals: inst.meals || 0, stars: d.stars, att: R.attuneOf(S, inst.id) }), label: `Becomes ${'★'.repeat(d.stars)}`, note: `All its numbers ×${mult}, and ${Math.round(d.stars * RULES.starHaste * 100)}% faster.` };
   }
-  if (d.kind === 'forge') {
+  if (d.kind === 'forge' || d.kind === 'tup') {
     const ids = TK_BY[d.res][d.size];
-    return { key: `f:${d.res}:${d.size}`, label: 'Forges one of', cards: ids.map((id) => ({ id, img: cardImageURL(id), name: TRINKETS[id].name, text: TRINKETS[id].text })) };
+    return { key: `f:${d.res}:${d.size}`, label: d.kind === 'tup' ? 'Choose one of' : 'Forges one of', cards: ids.map((id) => ({ id, img: cardImageURL(id), name: TRINKETS[id].name, text: TRINKETS[id].text })) };
   }
   if (d.kind === 'card') {
     const r = d.info;
@@ -867,31 +875,13 @@ function endDrag() {
     refresh();
     return;
   }
-  if (d.kind === 'forge') {
-    const res = R.forge(S, inst.uid, d.slot);
-    if (!res.ok) { ui.toast(res.reason, 'bad', 'coin'); bounceBack(card); refresh(); return; }
-    views.delete(inst.uid);
-    card.busy = true;
-    leaving.add(card);
-    card.scaleGoal = 0.3;
-    const sx = rackX(d.slot);
-    card.flyTo(sx, L.rack.z, {
-      dur: 0.35, arc: 1.4, done: () => {
-        leaving.delete(card);
-        card.dispose(scene);
-        fx.sparkles(new THREE.Vector3(sx, 0.4, L.rack.z), { n: 22, color: '#ffe9a8', spread: 1.2 });
-        const v = trinketViews.get(res.trinket.uid);
-        if (v) { v.flip = Math.PI; v.flipGoal = 0; v.kick(0.2); }
-        sfx.rare();
-        const t = TRINKETS[res.trinket.id];
-        ui.toast(`Forged <b>${ui.esc(t.name)}</b>`, 'good', 'bless');
-      },
-    });
-    sfx.coin();
+  if (d.kind === 'forge' || d.kind === 'tup') {
+    const cost = d.kind === 'tup' ? d.cost : R.forgeCost(S, d.size);
+    if (S.gold < cost) { ui.toast(`${d.kind === 'tup' ? 'Upgrading' : 'Forging'} costs ${cost} gold`, 'bad', 'coin'); bounceBack(card); refresh(); return; }
+    // set the bundle back down while the player picks
+    bounceBack(card);
     refresh();
-    // the new trinket waits face-down until the bundle lands on it
-    const nv = trinketViews.get(res.trinket.uid);
-    if (nv) { nv.flip = Math.PI; nv.flipGoal = Math.PI; }
+    pickTrinket(card, d);
     return;
   }
   if (d.kind === 'card') {
@@ -977,6 +967,50 @@ function inMarket(x, z) {
 function returnToMarket(card) {
   const p = marketPos(card.market);
   card.moveTo(p.x, p.z - 0.2);
+}
+
+// Choose which trinket a forge or upgrade makes, then fly the bundle in.
+function pickTrinket(card, d) {
+  const have = new Set(S.trinkets.filter(Boolean).map((t) => t.id));
+  const options = R.forgeOptions(d.res, d.size).map((id) => ({ id, img: cardImageURL(id), have: have.has(id) }));
+  const M = TRINKET_METAL[d.size].name;
+  const el = d.kind === 'tup'
+    ? ui.trinketPick({ title: `Upgrade to ${M} ×${d.size}`, sub: `Replaces ${ui.esc(TRINKETS[S.trinkets[d.slot].id].name)}`, options, cost: d.cost })
+    : ui.trinketPick({ title: `Forge a ${M} trinket`, sub: d.replaces ? `Replaces ${ui.esc(TRINKETS[d.replaces.id].name)}` : `${ui.esc(CARDS[d.res].name)} ×${d.size}`, options, cost: R.forgeCost(S, d.size) });
+  el.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => ui.modal(null)));
+  el.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => {
+    ui.modal(null);
+    const inst = card.inst;
+    if (!inst || !R.find(S, inst.uid)) return;
+    const res = d.kind === 'tup' ? R.upgradeTrinket(S, inst.uid, d.slot, b.dataset.pick) : R.forge(S, inst.uid, d.slot, b.dataset.pick);
+    if (!res.ok) { ui.toast(res.reason, 'bad', 'coin'); refresh(); return; }
+    forgeFly(card, d.slot, res.trinket, d.kind === 'tup' ? 'Upgraded to' : 'Forged');
+  }));
+}
+
+function forgeFly(card, slot, trinket, verb) {
+  views.delete(card.inst.uid);
+  card.busy = true;
+  leaving.add(card);
+  card.scaleGoal = 0.3;
+  card.raise();
+  const sx = rackX(slot);
+  card.flyTo(sx, L.rack.z, {
+    dur: 0.35, arc: 1.4, done: () => {
+      leaving.delete(card);
+      card.dispose(scene);
+      fx.sparkles(new THREE.Vector3(sx, 0.4, L.rack.z), { n: 22, color: '#ffe9a8', spread: 1.2 });
+      const v = trinketViews.get(trinket.uid);
+      if (v) { v.flip = Math.PI; v.flipGoal = 0; v.kick(0.2); }
+      sfx.rare();
+      ui.toast(`${verb} <b>${ui.esc(TRINKETS[trinket.id].name)}</b>`, 'good', 'bless');
+    },
+  });
+  sfx.coin();
+  refresh();
+  // the trinket waits face-down until the bundle lands on it
+  const nv = trinketViews.get(trinket.uid);
+  if (nv) { nv.flip = Math.PI; nv.flipGoal = Math.PI; }
 }
 
 function bounceBack(card) {

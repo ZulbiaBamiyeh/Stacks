@@ -334,27 +334,65 @@ export function forgeCost(s, size) {
   return trinketMods(s).freeForge ? 0 : FORGE_COST[size];
 }
 
-// Forge a bundle into a random trinket of its size, in rack slot `slot`
-// (replacing whatever was there).
-export function forge(s, uid, slot) {
+// The trinkets a bundle of `res` x`size` can become (the player picks one).
+export const forgeOptions = (res, size) => TK_BY[res]?.[size] || [];
+
+// Forge a bundle into a trinket of its size in rack slot `slot` (replacing
+// whatever was there). `pick` is the player's choice; without one it's random.
+export function forge(s, uid, slot, pick = null) {
   const f = find(s, uid);
   if (!f) return { ok: false };
   const size = stackOf(f.inst);
   if (size < 2) return { ok: false, reason: 'Stack 2 or more of one resource to forge a trinket' };
   const cost = forgeCost(s, size);
   if (s.gold < cost) return { ok: false, reason: `Forging costs ${cost} gold` };
-  s.gold -= cost;
-  const have = new Set(s.trinkets.filter(Boolean).map((t) => t.id));
   const all = TK_BY[f.inst.id][size];
-  const fresh = all.filter((id) => !have.has(id));
-  const r = rng(s);
-  const id = r.pick(fresh.length ? fresh : all);
-  r.done();
+  let id = pick;
+  if (!all.includes(id)) {
+    const have = new Set(s.trinkets.filter(Boolean).map((t) => t.id));
+    const fresh = all.filter((x) => !have.has(x));
+    const r = rng(s);
+    id = r.pick(fresh.length ? fresh : all);
+    r.done();
+  }
+  s.gold -= cost;
   remove(s, uid);
   const replaced = s.trinkets[slot];
   const t = { uid: s.uid++, id };
   s.trinkets[slot] = t;
   return { ok: true, trinket: t, replaced, cost };
+}
+
+// Dropping more of a trinket's resource on it raises its size (max x5): the
+// player picks one of the trinkets at the new size. Pays the difference in
+// forge cost.
+export function upgradeInfo(s, uid, slot) {
+  const f = find(s, uid);
+  const t = s.trinkets[slot];
+  if (!f || !t || TRINKETS[t.id].res !== f.inst.id) return null;
+  const from = TRINKETS[t.id].size;
+  if (from >= MAX_STACK) return { ok: false, reason: `Already ×${MAX_STACK}, the highest tier` };
+  const size = Math.min(MAX_STACK, from + stackOf(f.inst));
+  const cost = Math.max(0, forgeCost(s, size) - forgeCost(s, from));
+  return { ok: true, from, size, cost, options: forgeOptions(f.inst.id, size) };
+}
+
+export function upgradeTrinket(s, uid, slot, pick = null) {
+  const info = upgradeInfo(s, uid, slot);
+  if (!info || !info.ok) return { ok: false, reason: info?.reason || 'Nothing happens' };
+  if (s.gold < info.cost) return { ok: false, reason: `Upgrading costs ${info.cost} gold` };
+  let id = pick;
+  if (!info.options.includes(id)) {
+    const r = rng(s);
+    id = r.pick(info.options);
+    r.done();
+  }
+  s.gold -= info.cost;
+  remove(s, uid);
+  const t = s.trinkets[slot];
+  const was = t.id;
+  t.id = id;
+  return { ok: true, trinket: t, was, cost: info.cost, size: info.size };
 }
 
 export function moveTrinket(s, from, to) {
