@@ -321,6 +321,7 @@ function separate(dt) {
 // Wall cards show their real numbers with neighbour and pack bonuses applied.
 function refreshLive() {
   const snap = R.snapshot(S, 'You');
+  if (dev) snap.gold = Math.min(snap.gold, 5 + S.day * 2);
   const probe = createBattle({ left: snap, right: { name: 'probe', hp: 1, slots: 1, wall: [null] }, seed: 1 });
   const onWall = new Set();
   probe.sides[0].units.forEach((u, i) => {
@@ -333,7 +334,18 @@ function refreshLive() {
   for (const v of views.values()) if (!onWall.has(v) && !v.busy && v.live) v.setLive(null);
 }
 
+// Dev mode: gold never runs out (toggled in the menu, or ?dev in the URL).
+let dev = new URLSearchParams(location.search).has('dev');
+try { dev ||= localStorage.getItem('stackbrawl.dev') === '1'; } catch { /* storage blocked */ }
+function setDev(on) {
+  dev = on;
+  try { localStorage.setItem('stackbrawl.dev', on ? '1' : '0'); } catch { /* storage blocked */ }
+  refresh();
+}
+
 function refresh() {
+  if (dev && S.gold < 999) S.gold = 999;
+  S.dev = dev;
   world.setTheme(S.theme || 'meadow');
   refreshSlots();
   refreshPlaque();
@@ -1183,7 +1195,9 @@ async function startFight() {
   const token = fightToken;
   ghost = await fetchGhost({ day: S.day, wins: S.wins, losses: S.losses, runSeed: S.seed, seed: (S.seed ^ (S.day * 2654435761)) >>> 0 });
   if (token !== fightToken) return; // a new game started while the ghost loaded
-  submitGhost(snap, S.seed);
+  // fights see a normal purse, and dev runs aren't saved as ghosts
+  if (dev) snap.gold = Math.min(snap.gold, 5 + S.day * 2);
+  else submitGhost(snap, S.seed);
   B = createBattle({ left: snap, right: ghost, seed: (S.seed * 31 + S.day) >>> 0 });
   acc = 0;
   bv = [[], []];
@@ -1567,9 +1581,10 @@ function bindModal(el) {
   el?.querySelector('[data-help]')?.addEventListener('click', () => bindModal(ui.help()));
   el?.querySelector('[data-ideas]')?.addEventListener('click', () => bindModal(ui.ideas(codex)));
   el?.querySelector('[data-sound]')?.addEventListener('click', () => { ui.setSound(sfx.toggle()); openMenu(); });
+  el?.querySelector('[data-dev]')?.addEventListener('click', () => { setDev(!dev); ui.toast(dev ? 'Dev mode on: infinite gold' : 'Dev mode off', 'good'); openMenu(); });
 }
 // New game is only offered between fights, so a battle never gets cut off midway.
-const openMenu = () => bindModal(ui.menu(S, { muted: sfx.muted, midFight: mode !== 'shop' && mode !== 'over' }));
+const openMenu = () => bindModal(ui.menu(S, { muted: sfx.muted, midFight: mode !== 'shop' && mode !== 'over', dev }));
 $('btn-menu').addEventListener('click', openMenu);
 $('btn-ideas').addEventListener('click', () => bindModal(ui.ideas(codex)));
 $('btn-help').addEventListener('click', () => bindModal(ui.help()));

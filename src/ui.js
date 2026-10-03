@@ -26,8 +26,9 @@ export function createUI() {
   function hud(s, codex) {
     $('hud-day').textContent = `Day ${s.day}`;
     const g = $('hud-gold');
-    if (g.textContent !== String(s.gold)) {
-      g.textContent = s.gold;
+    const shown = s.dev ? '∞' : String(s.gold);
+    if (g.textContent !== shown) {
+      g.textContent = shown;
       g.parentElement.classList.remove('bump');
       void g.parentElement.offsetWidth;
       g.parentElement.classList.add('bump');
@@ -405,7 +406,7 @@ export function createUI() {
       <div class="actions"><button class="big-btn" data-close>Got it</button></div>`);
   }
 
-  function menu(s, { muted = false, midFight = false } = {}) {
+  function menu(s, { muted = false, midFight = false, dev = false } = {}) {
     return modal(`
       <h2>Menu</h2>
       <p class="muted">Day ${s.day} · ${s.wins} wins, ${s.losses} losses · ${s.gold} gold</p>
@@ -415,6 +416,7 @@ export function createUI() {
         <button class="big-btn ghost-dark" data-help type="button">How to play</button>
         <button class="big-btn ghost-dark" data-ideas type="button">Ideas</button>
         <button class="big-btn ghost-dark" data-sound type="button">Sound: ${muted ? 'off' : 'on'}</button>
+        <button class="big-btn ghost-dark" data-dev type="button">Dev mode (infinite gold): ${dev ? 'on' : 'off'}</button>
       </div>`);
   }
 
