@@ -10,7 +10,7 @@ function makeUnit(id, side, slot, perm = 0, summoned = false, extra = {}) {
   const def = CARDS[id];
   return {
     def, id, side, slot, perm, summoned,
-    meals: extra.meals || 0, owned: extra.owned || 0, stars: extra.stars || 0, fires: 0, dealt: 0, accel: 0, selfBonus: 0,
+    meals: extra.meals || 0, owned: extra.owned || 0, stars: extra.stars || 0, att: extra.att || 1, fires: 0, dealt: 0, accel: 0, selfBonus: 0,
     bonus: 0, frozen: 0, guard: 0,
     timers: def.t.map(([cd, ...acts], i) => ({ cd, acts, prog: def.firstStrike && i === 0 ? cd : 0 })),
     onceDone: false, summons: 0, blessCount: 0, ramp: 0, shots: 0, altIdx: 0, primed: false,
@@ -192,7 +192,7 @@ export function createBattle({ left, right, seed = 1 }) {
     const S = sides[u.side];
     const E = sides[1 - u.side];
     let n = act.n;
-    const sm = starMult(u.def, u.stars);
+    const sm = starMult(u.def, u.stars, u.att);
     if (act.fixed) return sm !== 1 ? Math.round(n * sm) : n;
     if (act.k === u.def.main) n += u.bonus + u.perm + u.selfBonus;
     for (const v of neighbours(u)) if (v.def.aura && v.def.aura.k === act.k) n += v.def.aura.n;
@@ -302,13 +302,13 @@ export function createBattle({ left, right, seed = 1 }) {
     const E = sides[1 - u.side];
     if (!act.trigger && missed(u)) return;
     let n = num(u, act, scale);
-    if (act.perGold) n += Math.floor(S.gold / act.perGold);
+    if (act.perGold) n += Math.round(Math.floor(S.gold / act.perGold) * starMult(u.def, u.stars, u.att));
     if (act.perOwned) n += Math.min(act.perOwned, u.owned);
     if (act.goldMult) n = S.gold * act.goldMult;
     if (act.goldFrac) n = Math.min(act.max || Infinity, Math.floor(S.gold * act.goldFrac));
     if (act.shieldFrac) n = Math.floor(S.shield * act.shieldFrac);
     // gold- and shield-scaled hits replace the base number, so apply stars here
-    if (act.goldMult || act.goldFrac || act.shieldFrac) n = Math.round(n * starMult(u.def, u.stars));
+    if (act.goldMult || act.goldFrac || act.shieldFrac) n = Math.round(n * starMult(u.def, u.stars, u.att));
     if (act.spendShield) { n = S.shield; S.shield = 0; }
     if (act.healFrac) {
       const healed = S.healLog.filter(([t]) => t > b.t - 4 * RULES.time).reduce((a, [, h]) => a + h, 0);
@@ -847,9 +847,10 @@ export function createBattle({ left, right, seed = 1 }) {
     dealDamage(S, n, { kind: 'burn', pierce: !!E.tk.burnPierce });
     if (E.tk.leech?.burn) doHeal(E, Math.max(1, Math.round((hp0 - S.hp) * E.tk.leech.burn)), null);
     const ifrit = alive(E).some((v) => v.def.ifrit && v.frozen <= 0);
-    const decay = E.tk.burnDecay || RULES.burnDecay;
+    // Ifrit slows the decay: burn loses a third per tick instead of half.
+    const decay = Math.max(E.tk.burnDecay || RULES.burnDecay, ifrit ? 3 : 0);
     // Burn halves each tick (rounded in the burner's favour), so it can't snowball.
-    if (!ifrit && decay !== Infinity) {
+    if (decay !== Infinity) {
       const before = S.burn;
       S.burn -= Math.max(1, Math.ceil(S.burn / decay));
       if (S.burn <= 0) { S.burn = 0; S.burnSrc.clear(); }

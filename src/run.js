@@ -2,7 +2,7 @@
 // Pure data in, data out (no DOM) so it can be saved and tested.
 import {
   CARDS, PACKS, BASE_PACKS, TRACKS, TRACK_STEPS, TRACK_RARE_CHANCE, RULES, INGREDIENTS,
-  BASE_UNITS, recipeFor, sellValue, fortressHp, wallSlots, eats, combineCost, starCost, starMult,
+  BASE_UNITS, recipeFor, sellValue, fortressHp, wallSlots, eats, combineCost, starCost, starMult, attuneFor,
 } from './content.js';
 import { createRng, randomSeed } from './rng.js';
 import { TRINKETS, TK_BY, RACK_SLOTS, MAX_STACK, FORGE_COST, aggregate, trinketSellValue } from './trinkets.js';
@@ -105,6 +105,11 @@ export function rollShop(s) {
   // Once the shrine is bound, the shop leans toward that land: its resource
   // turns up often, and so do the units from its open packs.
   const track = s.bound && TRACKS.find((t) => t.id === s.bound);
+  // Before binding, it leans toward whatever you've been feeding the most.
+  if (!track) {
+    const lead = TRACKS.reduce((a, t) => (s.fed[t.id] > (a ? s.fed[a.id] : 0) ? t : a), null);
+    if (lead && unlockedIngredient(s, lead.feed)) pool.push([lead.feed, 3]);
+  }
   if (track) {
     pool.push([track.feed, 5]);
     for (const packId of availablePacks(s).filter((id) => track.packs.includes(id))) {
@@ -167,6 +172,8 @@ export function openOne(s, packUid) {
 // Modifiers from the trinkets on the rack.
 export const trinketMods = (s) => aggregate((s.trinkets || []).filter(Boolean).map((t) => t.id));
 export const stackOf = (inst) => inst.stack || 1;
+// Attunement: a bound shrine boosts the numbers of its track's units.
+export const attuneOf = (s, id) => attuneFor(s.bound, s.fed, id);
 
 // Traders and sell trinkets add gold to only the first few sales each day.
 export const bonusSalesLeft = (s) => Math.max(0, RULES.sellBonusPerDay - (s.bonusSales || 0));
@@ -432,7 +439,7 @@ export function snapshot(s, name = 'You') {
     hp: fortressHp(s.day),
     gold: s.gold,
     slots: slotsToday(s),
-    wall: s.wall.slice(0, slotsToday(s)).map((c) => (c ? { id: c.id, perm: c.perm, meals: c.meals || 0, owned: c.owned || 0, stars: c.stars || 0 } : null)),
+    wall: s.wall.slice(0, slotsToday(s)).map((c) => (c ? { id: c.id, perm: c.perm, meals: c.meals || 0, owned: c.owned || 0, stars: c.stars || 0, att: attuneOf(s, c.id) } : null)),
     trinkets: (s.trinkets || []).filter(Boolean).map((t) => t.id),
     tableCount: s.table.length,
   };
@@ -467,6 +474,9 @@ export function finishFight(s, won, opponentName) {
   // Interest on what you're holding: +1 per 10 gold, up to +3.
   const interest = Math.min(RULES.interestMax, Math.floor(s.gold / RULES.interestPer));
   if (interest) lines.push(['Interest', interest]);
+  // A Caravan-bound shrine pays a wage: +2 gold a day per shrine step.
+  const caravanSteps = s.bound === 'caravan' ? TRACK_STEPS.filter((n) => s.fed.caravan >= n).length : 0;
+  if (caravanSteps) lines.push(['Caravan shrine', 2 * caravanSteps]);
   if (tk.gold) lines.push(['Trinkets', tk.gold]);
   if (tk.interest) {
     const g = Math.min(tk.interest, Math.floor(s.gold / 5));
@@ -475,7 +485,7 @@ export function finishFight(s, won, opponentName) {
   if (won) lines.push(['Victory bonus', RULES.winGold]);
   for (const c of owned(s)) {
     const d = CARDS[c.id];
-    if (d.gold) lines.push([d.name, Math.round(d.gold * starMult(d, c.stars))]);
+    if (d.gold) lines.push([d.name, Math.round(d.gold * starMult(d, c.stars, attuneOf(s, c.id)))]);
     if (d.banker) {
       const g = Math.min(4, Math.floor(s.gold / 5));
       if (g) lines.push([d.name, g]);

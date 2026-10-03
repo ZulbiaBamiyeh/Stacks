@@ -180,7 +180,7 @@ const GOLD_FOOD = ['coin'];
 
 // Flame
 U('flameImp', 'Flame Imp', 1, 'spirit', '2 burn every 2.4s. Its first cast happens at once', { ...TRACK, t: [[2.4, burn(2)]], firstStrike: true });
-U('salamander', 'Salamander', 1, 'wolf', '1 burn every 1.5s. +1 burn per hit this fight (max +4)', { ...TRACK, t: [[1.5, burn(1, { ramp: 4 })]], tags: CREATURE });
+U('salamander', 'Salamander', 1, 'wolf', '1 burn every 2s. +1 burn per hit this fight (max +3)', { ...TRACK, t: [[2, burn(1, { ramp: 3 })]], tags: CREATURE });
 U('cinderMaw', 'Cinder Maw', 1, 'spirit', '2 burn every 2.5s, +1 per meal eaten. Eats Ember or Wood. Evolves after 5 meals', { ...TRACK, t: [[2.5, burn(2)]], eats: { foods: FIRE_FOOD, evolve: [5, 'cinderWyrm'] } });
 U('cinderWyrm', 'Cinder Wyrm', 3, 'spirit', '2 burn every 1.8s, +1 per meal eaten. Eats Ember or Wood. Evolves after 12 meals', { ...TRACK, t: [[1.8, burn(2)]], eats: { foods: FIRE_FOOD, evolve: [12, 'emberLeviathan'] } });
 U('emberLeviathan', 'Ember Leviathan', 4, 'spirit', '2 burn every 1.4s, +1 per meal eaten. At fight start the enemy gains burn equal to its meals. Still eats Ember or Wood', { ...TRACK, t: [[1.4, burn(2)]], eats: { foods: FIRE_FOOD }, startEnemy: { k: 'burn', perMeal: 1 } });
@@ -193,8 +193,8 @@ U('fireElemental', 'Fire Elemental', 3, 'spirit', "4 burn every 2s. Can't be fro
 U('lavaGolem', 'Lava Golem', 3, 'golem', '8 shield every 2.5s. While you have shield, the enemy gains 1 burn every 1s', { ...TRACK, t: [[2.5, shield(8)], [1, burn(1, { ifShield: true })]] });
 U('beacon', 'Beacon', 3, 'thing', "3 damage and 2 burn every 1.5s. Neighbours' burn +2", { ...TRACK, t: [[1.5, dmg(3), burn(2)]], aura: { k: 'burn', n: 2 }, main: 'burn' });
 U('smogElemental', 'Smog Elemental', 3, 'spirit', '1 poison every 2.2s, plus 2 burn and +1 burn per 2 poison on the enemy', { ...TRACK, t: [[2.2, poison(1), burn(2, { perEnemy: ['poison', 2] })]] });
-U('magmaSalamander', 'Magma Salamander', 2, 'wolf', '1 burn every 1.5s, +1 per hit this fight (max +6). Starts each fight with 8 shield', { ...TRACK, t: [[1.5, burn(1, { ramp: 6 })]], startShield: 8, tags: CREATURE });
-U('toxicNewt', 'Toxic Newt', 2, 'wolf', '1 burn and 1 poison every 1.8s. Both +1 per hit this fight (max +3)', { ...TRACK, t: [[1.8, burn(1, { ramp: 3 }), poison(1, { ramp: 3 })]], tags: CREATURE });
+U('magmaSalamander', 'Magma Salamander', 2, 'wolf', '1 burn every 2s, +1 per hit this fight (max +4). Starts each fight with 8 shield', { ...TRACK, t: [[2, burn(1, { ramp: 4 })]], startShield: 8, tags: CREATURE });
+U('toxicNewt', 'Toxic Newt', 2, 'wolf', '1 burn and 1 poison every 2.4s. Both +1 per hit this fight (max +2)', { ...TRACK, t: [[2.4, burn(1, { ramp: 2 }), poison(1, { ramp: 2 })]], tags: CREATURE });
 U('firedrake', 'Firedrake', 2, 'wolf', '2 damage and 1 burn every 1.5s. Both +1 per hit this fight (max +3)', { ...TRACK, t: [[1.5, dmg(2, { ramp: 3 }), burn(1, { ramp: 3 })]], tags: CREATURE });
 U('drakeMatriarch', 'Drake Matriarch', 3, 'wolf', '3 burn every 2s. Each cast gives your other drakes +1 to their main number for the fight (max +4)', { ...TRACK, t: [[2, burn(3), special('rally', { kin: 'drake', n: 1, max: 4 })]], tags: CREATURE });
 U('cinderHawk', 'Cinder Hawk', 2, 'fairy', '3 damage every 1s. +1 damage per 5 burn on the enemy', { ...TRACK, t: [[1, dmg(3, { perEnemy: ['burn', 5] })]] });
@@ -241,10 +241,10 @@ U('treasureChest', 'Treasure Chest', 1, 'thing', 'No attack. Sells for 3 gold pl
 U('goldbug', 'Goldbug', 1, 'scorpion', '1 damage every 1.5s, +1 per meal eaten. Eats Coin. Evolves after 5 meals', { ...TRACK, t: [[1.5, dmg(1)]], eats: { foods: GOLD_FOOD, evolve: [5, 'gildedBeetle'] }, tags: CREATURE });
 U('gildedBeetle', 'Gilded Beetle', 3, 'scorpion', '1 damage every 1.1s, +1 per meal eaten. Eats Coin. Evolves after 12 meals', { ...TRACK, t: [[1.1, dmg(1)]], eats: { foods: GOLD_FOOD, evolve: [12, 'midasScarab'] }, tags: CREATURE });
 U('midasScarab', 'Midas Scarab', 4, 'scorpion', '1 damage every 0.9s, +1 per meal eaten. +2 gold per day. Still eats Coin', { ...TRACK, t: [[0.9, dmg(1)]], eats: { foods: GOLD_FOOD }, gold: 2, tags: CREATURE });
-U('goldGolem', 'Gold Golem', 2, 'golem', 'Every 2.5s, deals 3 damage plus 1 per 4 gold held', { ...TRACK, t: [[2.5, dmg(3, { perGold: 4 })]] });
+U('goldGolem', 'Gold Golem', 1, 'golem', 'Every 2.5s, deals 3 damage plus 1 per 3 gold held', { ...TRACK, t: [[2.5, dmg(3, { perGold: 3 })]] });
 U('caravanGuard', 'Caravan Guard', 2, 'wolf', '6 shield every 2.5s. +1 shop slot', { ...TRACK, t: [[2.5, shield(6)]], shopSlot: 1, tags: CREATURE });
 U('spiceTrader', 'Spice Trader', 2, 'person', '2 damage and 2 burn every 2s. Selling a card gives +1 gold (3 sales a day)', { ...TRACK, t: [[2, dmg(2), burn(2)]], sellBonus: 1 });
-U('mimic', 'Mimic', 2, 'thing', 'Every 3s, deals 2 damage plus 1 per day owned (max +8)', { ...TRACK, t: [[3, dmg(2, { perOwned: 8 })]] });
+U('mimic', 'Mimic', 1, 'thing', 'Every 3s, deals 2 damage plus 1 per day owned (max +8)', { ...TRACK, t: [[3, dmg(2, { perOwned: 8 })]] });
 
 // Forge
 U('golem', 'Golem', 1, 'golem', "5 shield every 3s. Can't be frozen", { ...TRACK, t: [[3, shield(5)]], noFreeze: true });
@@ -316,10 +316,10 @@ U('roc', 'Roc', 4, 'wolf', '6 damage every 1.5s, ignores shield. Once per fight,
 U('manticore', 'Manticore', 4, 'wolf', '8 damage and 2 poison every 2s', { ...RARE, t: [[2, dmg(8), poison(2)]], tags: CREATURE });
 U('scorpionQueen', 'Scorpion Queen', 4, 'scorpion', '1 poison every 1.5s. All your poison applications get +1', { ...RARE, t: [[1.5, poison(1)]], queen: 1, tags: CREATURE });
 U('djinn', 'Djinn', 4, 'spirit', 'Every 3s, copies the effect of a random friendly unit (never another Djinn)', { ...RARE, t: [[3, special('djinn')]] });
-U('ifrit', 'Ifrit', 4, 'spirit', "6 burn every 3s. Enemy burn does not decay while Ifrit isn't frozen", { ...RARE, t: [[3, burn(6)]], ifrit: true });
+U('ifrit', 'Ifrit', 4, 'spirit', "4 burn every 3s. Enemy burn decays slower (a third per tick, not half) while Ifrit isn't frozen", { ...RARE, t: [[3, burn(4)]], ifrit: true });
 U('tombKing', 'Tomb King', 4, 'person', '4 damage every 2s. Your "after each fight" bonuses grow twice as fast', { ...RARE, t: [[2, dmg(4)]], tombKing: true });
 U('simurgh', 'Simurgh', 4, 'wolf', '5 heal every 1.5s. Each heal also deals half its amount as damage', { ...RARE, t: [[1.5, heal(5, { dmgFrac: 0.5 })]], tags: CREATURE });
-U('dragonsHoard', "Dragon's Hoard", 4, 'thing', 'Every 3s, deals damage equal to 25% of gold held (max 15). +2 gold per day', { ...RARE, t: [[3, dmg(0, { goldFrac: 0.25, max: 15 })]], gold: 2 });
+U('dragonsHoard', "Dragon's Hoard", 4, 'thing', 'Every 3s, deals damage equal to 40% of gold held (max 20). +2 gold per day', { ...RARE, t: [[3, dmg(0, { goldFrac: 0.4, max: 20 })]], gold: 2 });
 U('titan', 'Titan', 4, 'golem', "20 damage every 4s. Can't be frozen", { ...RARE, t: [[4, dmg(20)]], noFreeze: true });
 U('fourLeafFairy', 'Four-Leaf Fairy', 4, 'fairy', 'At fight start, Bless 15 times and gain 6 Luck', { ...RARE, startBless: 15, startLuck: 6 });
 U('sandworm', 'Sandworm', 4, 'scorpion', "Every 4s, consumes up to 8 of the enemy's Sand to deal 5 damage per stack, ignoring shield", { ...RARE, t: [[4, special('sandworm', { per: 5, max: 8 })]], tags: CREATURE });
@@ -515,19 +515,19 @@ export const PACKS = {
   village: { id: 'village', name: 'Village Pack', price: 3, size: 3, pool: [['villager', 3], ['relayRunner', 1], ['duelist', 1], ['hermit', 1], ['wood', 2], ['stone', 2], ['berry', 2], ['coin', 2]] },
   wild: { id: 'wild', name: 'Wild Pack', price: 3, size: 3, pool: [['wolf', 3], ['fairy', 3], ['packrat', 1], ['parrot', 1], ['luckyCat', 1], ['berry', 1], ['wood', 1], ['feather', 2], ['crystal', 1], ['ice', 2]] },
   desert: { id: 'desert', name: 'Desert Pack', price: 3, size: 3, pool: [['scorpion', 3], ['hourglass', 1], ['boiler', 1], ['bone', 2], ['ember', 2], ['mushroom', 2], ['sand', 2], ['moonstone', 1]] },
-  flame: { id: 'flame', name: 'Flame Pack', price: 4, size: 3, track: 'flame', pool: [['flameImp', 3], ['salamander', 3], ['ember', 2]] },
-  inferno: { id: 'inferno', name: 'Inferno Pack', price: 5, size: 3, track: 'flame', rare: 'ifrit', pool: [['cinderMaw', 3], ['ashMoth', 3], ['ember', 1], ['wood', 1]] },
-  tomb: { id: 'tomb', name: 'Tomb Pack', price: 4, size: 3, track: 'tomb', pool: [['ghoul', 3], ['mummy', 3], ['bone', 2]] },
-  crypt: { id: 'crypt', name: 'Crypt Pack', price: 5, size: 3, track: 'tomb', rare: 'tombKing', pool: [['bogMaw', 3], ['plagueRat', 3], ['mushroom', 1], ['bone', 1]] },
-  grove: { id: 'grove', name: 'Grove Pack', price: 4, size: 3, track: 'grove', pool: [['stag', 3], ['thornbush', 3], ['berry', 2]] },
-  oasis: { id: 'oasis', name: 'Oasis Pack', price: 5, size: 3, track: 'grove', rare: 'simurgh', pool: [['sapling', 3], ['vineling', 3], ['berry', 1], ['wood', 1]] },
-  caravan: { id: 'caravan', name: 'Caravan Pack', price: 4, size: 3, track: 'caravan', pool: [['camel', 2], ['trader', 3], ['coin', 2]] },
-  treasury: { id: 'treasury', name: 'Treasury Pack', price: 5, size: 3, track: 'caravan', rare: 'dragonsHoard', pool: [['goldbug', 3], ['treasureChest', 3], ['coin', 2]] },
-  quarry: { id: 'quarry', name: 'Quarry Pack', price: 4, size: 3, track: 'forge', pool: [['golem', 3], ['catapult', 3], ['stone', 2]] },
-  foundry: { id: 'foundry', name: 'Foundry Pack', price: 5, size: 3, track: 'forge', rare: 'titan', pool: [['smith', 3], ['clockwork', 3], ['stone', 1]] },
+  flame: { id: 'flame', name: 'Flame Pack', price: 3, size: 3, track: 'flame', pool: [['flameImp', 3], ['salamander', 3], ['ember', 2]] },
+  inferno: { id: 'inferno', name: 'Inferno Pack', price: 4, size: 3, track: 'flame', rare: 'ifrit', pool: [['cinderMaw', 3], ['ashMoth', 3], ['ember', 1], ['wood', 1]] },
+  tomb: { id: 'tomb', name: 'Tomb Pack', price: 3, size: 3, track: 'tomb', pool: [['ghoul', 3], ['mummy', 3], ['bone', 2]] },
+  crypt: { id: 'crypt', name: 'Crypt Pack', price: 4, size: 3, track: 'tomb', rare: 'tombKing', pool: [['bogMaw', 3], ['plagueRat', 3], ['mushroom', 1], ['bone', 1]] },
+  grove: { id: 'grove', name: 'Grove Pack', price: 3, size: 3, track: 'grove', pool: [['stag', 3], ['thornbush', 3], ['berry', 2]] },
+  oasis: { id: 'oasis', name: 'Oasis Pack', price: 4, size: 3, track: 'grove', rare: 'simurgh', pool: [['sapling', 3], ['vineling', 3], ['berry', 1], ['wood', 1]] },
+  caravan: { id: 'caravan', name: 'Caravan Pack', price: 3, size: 3, track: 'caravan', pool: [['camel', 1], ['trader', 2], ['goldGolem', 2], ['coin', 2]] },
+  treasury: { id: 'treasury', name: 'Treasury Pack', price: 4, size: 3, track: 'caravan', rare: 'dragonsHoard', pool: [['goldbug', 2], ['treasureChest', 2], ['mimic', 2], ['coin', 2]] },
+  quarry: { id: 'quarry', name: 'Quarry Pack', price: 3, size: 3, track: 'forge', pool: [['golem', 3], ['catapult', 3], ['stone', 2]] },
+  foundry: { id: 'foundry', name: 'Foundry Pack', price: 4, size: 3, track: 'forge', rare: 'titan', pool: [['smith', 3], ['clockwork', 3], ['stone', 1]] },
   curio: { id: 'curio', name: 'Curio Pack', price: 3, size: 3, pool: [['relayRunner', 2], ['hourglass', 2], ['hermit', 2], ['duelist', 2], ['packrat', 2], ['parrot', 2], ['luckyCat', 2], ['boiler', 2], ['coin', 1]] },
-  frost: { id: 'frost', name: 'Frost Pack', price: 4, size: 3, track: 'frost', pool: [['snowSprite', 3], ['iceImp', 3], ['frostling', 2], ['ice', 2]] },
-  glacier: { id: 'glacier', name: 'Glacier Pack', price: 5, size: 3, track: 'frost', rare: 'hoarfrostDragon', pool: [['penguin', 3], ['yetiCub', 3], ['ice', 1], ['crystal', 1]] },
+  frost: { id: 'frost', name: 'Frost Pack', price: 3, size: 3, track: 'frost', pool: [['snowSprite', 3], ['iceImp', 3], ['frostling', 2], ['ice', 2]] },
+  glacier: { id: 'glacier', name: 'Glacier Pack', price: 4, size: 3, track: 'frost', rare: 'hoarfrostDragon', pool: [['penguin', 3], ['yetiCub', 3], ['ice', 1], ['crystal', 1]] },
 };
 // The Curio Pack is retired: its starters now live in the three base packs
 // (its definition stays so packs bought in older saves still open).
@@ -661,7 +661,43 @@ for (const u of UNITS) {
 export const BASE_UNITS = ['villager', 'wolf', 'scorpion', 'fairy'];
 export const SUMMONABLE = new Set(['scorpion', 'wolf', 'plagueRat', 'skeleton']);
 
-export const starMult = (def, stars) => (stars ? (def.rare ? RULES.rareStarMult : RULES.starMult)[stars] : 1);
+// att: attunement multiplier (see TRACK_FAMILY), folded in with the stars.
+export const starMult = (def, stars, att = 1) => (stars ? (def.rare ? RULES.rareStarMult : RULES.starMult)[stars] : 1) * att;
+
+// A track's family: the units in its packs, its rares, and everything they
+// combine into (with ingredients or each other). A bound shrine attunes them.
+export const TRACK_FAMILY = {};
+for (const t of TRACKS) {
+  const fam = new Set();
+  for (const p of t.packs) {
+    for (const [id] of PACKS[p].pool) if (CARDS[id].kind === 'unit') fam.add(id);
+    if (PACKS[p].rare) fam.add(PACKS[p].rare);
+  }
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const r of RECIPES.values()) {
+      for (const [x, y] of [[r.a, r.b], [r.b, r.a]]) {
+        if (!fam.has(x) || !(CARDS[y].kind === 'ingredient' || fam.has(y))) continue;
+        for (const out of [r.result, r.rare]) if (out && !fam.has(out)) { fam.add(out); grew = true; }
+      }
+    }
+  }
+  TRACK_FAMILY[t.id] = fam;
+}
+// Attunement by track: numbers multiplier at the first and second shrine step.
+export const ATTUNE = {
+  flame: [1.25, 1.5],
+  tomb: [1.3, 1.6],
+  grove: [1.4, 1.8],
+  caravan: [1.4, 1.8],
+  forge: [1.4, 1.8],
+  frost: [1.5, 2],
+};
+export function attuneFor(bound, fed, id) {
+  if (!bound || !TRACK_FAMILY[bound]?.has(id)) return 1;
+  const n = fed?.[bound] || 0;
+  return n >= TRACK_STEPS[1] ? ATTUNE[bound][1] : n >= TRACK_STEPS[0] ? ATTUNE[bound][0] : 1;
+}
 export const starCost = (def, stars) => (def.rare ? RULES.rareStarCost : RULES.starCost)[stars];
 
 export function combineCost(resultId) {

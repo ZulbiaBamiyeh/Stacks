@@ -161,3 +161,26 @@ test('a bound shrine tilts the shop toward its resource and units', () => {
   assert.ok(b.coins > a.coins * 2, `${b.coins} vs ${a.coins}`);
   assert.ok(b.track > a.track, `${b.track} vs ${a.track}`);
 });
+
+test('a bound shrine attunes its family: bigger numbers, more at step 2', async () => {
+  const { ATTUNE } = await import('../src/content.js');
+  const s = run.newRun(8);
+  s.table = [];
+  assert.equal(run.attuneOf(s, 'golem'), 1);
+  for (let i = 0; i < 5; i++) { const c = run.makeInst(s, 'stone'); s.table.push(c); run.feed(s, c.uid); }
+  assert.equal(run.attuneOf(s, 'golem'), ATTUNE.forge[0]);
+  assert.equal(run.attuneOf(s, 'trebuchet'), ATTUNE.forge[0]); // combines from the family count too
+  assert.equal(run.attuneOf(s, 'archer'), 1);
+  for (let i = 0; i < 5; i++) { const c = run.makeInst(s, 'stone'); s.table.push(c); run.feed(s, c.uid); }
+  assert.equal(run.attuneOf(s, 'golem'), ATTUNE.forge[1]);
+  const dmg = (att) => { const b = createBattle({ left: side([], [], { wall: [{ id: 'catapult', att }], slots: 1 }), right: side(['villager']), seed: 1 }); return b.liveStats(b.sides[0].units[0]).dmg; };
+  assert.ok(dmg(1.8) > dmg(1) * 1.6);
+});
+
+test('a Caravan-bound shrine pays a daily wage', () => {
+  const s = run.newRun(2);
+  s.table = [];
+  for (let i = 0; i < 5; i++) { const c = run.makeInst(s, 'coin'); s.table.push(c); run.feed(s, c.uid); }
+  const r = run.finishFight(s, false, 'x');
+  assert.ok(r.lines.some(([l, n]) => l === 'Caravan shrine' && n === 2));
+});

@@ -1,6 +1,6 @@
 // Stackbrawl: game controller. Wires run state, the 3D table, input and fights.
 import * as THREE from 'three';
-import { CARDS, PACKS, TRACKS, TRACK_STEPS, RULES, wallSlots, fortressHp, eats, starMult } from './content.js';
+import { CARDS, PACKS, TRACKS, TRACK_STEPS, ATTUNE, RULES, wallSlots, fortressHp, eats, starMult } from './content.js';
 import * as R from './run.js';
 import { TRINKETS, RACK_SLOTS, TK_BY, trinketSellValue } from './trinkets.js';
 import { TRINKET_METAL } from './gfx/draw.js';
@@ -171,7 +171,7 @@ function syncMarket() {
 // ------------------------------------------------------------------ card views
 
 function makeView(inst, x, z) {
-  const v = new CardView(scene, { id: inst.id, inst, perm: inst.perm, meals: inst.meals || 0, stars: inst.stars || 0 });
+  const v = new CardView(scene, { id: inst.id, inst, perm: inst.perm, meals: inst.meals || 0, stars: inst.stars || 0, att: R.attuneOf(S, inst.id) });
   v.place(x, z);
   views.set(inst.uid, v);
   return v;
@@ -217,7 +217,8 @@ function syncViews() {
     v.inst = inst;
     if (v.perm !== inst.perm || v.id !== inst.id || v.meals !== (inst.meals || 0)) v.setFace(inst.id, inst.perm, inst.meals || 0);
     if ((v.stack || 1) !== (inst.stack || 1)) v.setStack(inst.stack || 1);
-    if ((v.stars || 0) !== (inst.stars || 0)) v.setStars(inst.stars || 0);
+    const att = R.attuneOf(S, inst.id);
+    if ((v.stars || 0) !== (inst.stars || 0) || (v.att || 1) !== att) v.setStars(inst.stars || 0, att);
     if (!v.dragging && !v.busy && !v.flight) v.moveTo(h.x, h.z);
   }
   for (const [uid, v] of views) {
@@ -592,8 +593,8 @@ function shrineInfo() {
   }).join('');
   const bound = TRACKS.find((t) => t.id === S.bound);
   const note = bound
-    ? `<p class="muted small">Bound to <b>${bound.name}</b> for this run: the other tracks are sealed, and the land wears the ${bound.name} look.</p>`
-    : '<p class="muted small"><b>Choose carefully:</b> the first track you open binds the shrine for the rest of the run and seals the others. The land changes to match.</p>';
+    ? `<p class="muted small">Bound to <b>${bound.name}</b> for this run: the other tracks are sealed, and the land wears the ${bound.name} look. ${bound.name} units are <b>attuned</b>: numbers ×${ATTUNE[bound.id][0]} now, ×${ATTUNE[bound.id][1]} at ${TRACK_STEPS[1]}.${bound.id === 'caravan' ? ' The shrine also pays +2 gold a day per step.' : ''}</p>`
+    : '<p class="muted small"><b>Choose carefully:</b> the first track you open binds the shrine for the rest of the run and seals the others. Its units become <b>attuned</b> (bigger numbers), and the land changes to match.</p>';
   return `<h3>Shrine</h3><p>Drop ingredients (or whole bundles) here. ${TRACK_STEPS[0]} opens a track's first pack. ${TRACK_STEPS[1]} opens its second and hands you the track's rare.</p><div class="shr-list">${rows}</div>${note}`;
 }
 
@@ -605,10 +606,10 @@ function updateHover(cx, cy) {
   stage.className = card || tile ? 'point' : '';
   if (card) {
     if (card.trinket || card.enemyTrinket) ui.info(ui.trinketInfo(card.id, { sell: card.trinket && mode === 'shop' ? trinketSellValue(card.trinket) : null }));
-    else if (card.enemy || card.summoned) ui.info(ui.cardInfo(card.id, { inst: { perm: card.perm, stars: card.stars || 0 }, codex }));
+    else if (card.enemy || card.summoned) ui.info(ui.cardInfo(card.id, { inst: { perm: card.perm, stars: card.stars || 0, att: card.att || 1 }, codex }));
     else if (card.pack) ui.info(ui.packInfo(card.pack, { price: false }));
-    else if (card.market != null) ui.info(ui.cardInfo(card.id, { price: S.shop[card.market]?.price, codex }));
-    else ui.info(ui.cardInfo(card.id, { inst: card.inst, sell: card.inst && mode === 'shop' ? R.sellPrice(S, card.inst) : null, codex, extra: bundleNote(card) }));
+    else if (card.market != null) ui.info(ui.cardInfo(card.id, { price: S.shop[card.market]?.price, codex, att: R.attuneOf(S, card.id), bound: S.bound }));
+    else ui.info(ui.cardInfo(card.id, { inst: card.inst, sell: card.inst && mode === 'shop' ? R.sellPrice(S, card.inst) : null, codex, extra: bundleNote(card), att: R.attuneOf(S, card.id), bound: S.bound }));
   } else if (tile) {
     if (tile.kind === 'pack') ui.info(ui.packInfo(tile.pack));
     else if (tile.kind === 'sell') ui.info('<h3>Sell</h3><p>Drop a card here for gold: 1 per tier (ingredients sell for 1).</p>');
@@ -660,7 +661,7 @@ function dropPreview(d) {
   if (d.kind === 'star') {
     const inst = d.target.inst;
     const mult = starMult(CARDS[inst.id], d.stars);
-    return { key: `s:${inst.id}:${d.stars}`, id: inst.id, img: cardImageURL(inst.id, { perm: inst.perm, meals: inst.meals || 0, stars: d.stars }), label: `Becomes ${'★'.repeat(d.stars)}`, note: `All its numbers ×${mult}, and ${Math.round(d.stars * RULES.starHaste * 100)}% faster.` };
+    return { key: `s:${inst.id}:${d.stars}`, id: inst.id, img: cardImageURL(inst.id, { perm: inst.perm, meals: inst.meals || 0, stars: d.stars, att: R.attuneOf(S, inst.id) }), label: `Becomes ${'★'.repeat(d.stars)}`, note: `All its numbers ×${mult}, and ${Math.round(d.stars * RULES.starHaste * 100)}% faster.` };
   }
   if (d.kind === 'forge') {
     const ids = TK_BY[d.res][d.size];
@@ -1113,7 +1114,7 @@ async function startFight() {
   for (let i = 0; i < ghost.slots; i++) {
     const c = ghost.wall[i];
     if (!c || !CARDS[c.id]) continue;
-    const v = new CardView(scene, { id: c.id, perm: c.perm || 0, stars: c.stars || 0 });
+    const v = new CardView(scene, { id: c.id, perm: c.perm || 0, stars: c.stars || 0, att: c.att || 1 });
     v.place(arenaX(i), A.enemyZ - 3);
     v.flyTo(arenaX(i), A.enemyZ, { dur: 0.7, arc: 5, delay: 0.7 + i * 0.12, done: () => { fx.puffs(v.pos, { n: 6, s: 0.35 }); sfx.drop(); } });
     v.busy = true;

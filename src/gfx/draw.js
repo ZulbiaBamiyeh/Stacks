@@ -398,8 +398,8 @@ function blob(ctx, cx, cy, rx, ry, seed) {
 
 const NUMERIC = ['dmg', 'heal', 'shield', 'burn', 'poison', 'sand', 'heat', 'luck', 'bless', 'freeze'];
 
-export function cardStats(def, perm = 0, live = null, stars = 0) {
-  const sm = starMult(def, stars);
+export function cardStats(def, perm = 0, live = null, stars = 0, att = 1) {
+  const sm = starMult(def, stars, att);
   const stats = [];
   const seen = new Set();
   const extra = [def.once?.slice(1), def.onNeighbourAct, def.onOppositeAct].filter(Boolean);
@@ -458,7 +458,7 @@ const ART_TINT = {
   bless: '#f8eec6', luck: '#e3f0d6', freeze: '#dbf0f8', heat: '#fbe0bf',
 };
 
-export function drawCard(def, { perm = 0, art = null, summon = false, meals = 0, live = null, stack = 1, stars = 0 } = {}) {
+export function drawCard(def, { perm = 0, art = null, summon = false, meals = 0, live = null, stack = 1, stars = 0, att = 1 } = {}) {
   const { w, h } = CARD_PX;
   const cv = canvas(w, h);
   const ctx = cv.getContext('2d');
@@ -481,9 +481,22 @@ export function drawCard(def, { perm = 0, art = null, summon = false, meals = 0,
   ctx.fillStyle = col.title;
   ctx.textBaseline = 'middle';
   const tierW = def.tier ? 46 : 0;
-  const starW = stars ? stars * 40 + 8 : 0;
+  const starW = (stars ? stars * 40 + 8 : 0) + (att > 1 ? 40 : 0);
   fitText(ctx, def.name, w - 48 - tierW - starW, 38, 900, 20);
   ctx.fillText(def.name, 24, HEAD / 2 + 3);
+  // attuned to the bound shrine: a teal diamond after the name and stars
+  if (att > 1) {
+    const dx = 24 + ctx.measureText(def.name).width + 26 + stars * 40;
+    const dy = HEAD / 2 + 2;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(dx, dy - 17); ctx.lineTo(dx + 13, dy); ctx.lineTo(dx, dy + 17); ctx.lineTo(dx - 13, dy);
+    ctx.closePath();
+    ctx.lineWidth = 6; ctx.lineJoin = 'round'; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.fillStyle = '#4fc1a6'; ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = col.title;
+  }
   // stars from merging copies, right after the name
   if (stars) {
     const nameW = ctx.measureText(def.name).width;
@@ -603,7 +616,7 @@ export function drawCard(def, { perm = 0, art = null, summon = false, meals = 0,
   // Bottom badges
   const by = h - 58;
   if (def.kind === 'unit') {
-    const stats = cardStats(def, perm, live, stars);
+    const stats = cardStats(def, perm, live, stars, att);
     if (stats.length) {
       ctx.font = font(40, 900);
       const parts = stats.map((s) => ({ ...s, tw: ctx.measureText(String(s.n)).width }));

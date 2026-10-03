@@ -1,6 +1,6 @@
 // DOM overlay: HUD chips, hover info, drag hint, toasts, banners, modals,
 // and the fortress bars during a fight.
-import { CARDS, PACKS, RECIPES, RULES, fortressHp, wallSlots, combineCost, starMult } from './content.js';
+import { CARDS, PACKS, RECIPES, RULES, TRACKS, TRACK_FAMILY, fortressHp, wallSlots, combineCost, starMult } from './content.js';
 import { iconURL, ROMAN, cardStats, TRINKET_METAL } from './gfx/draw.js';
 import { TRINKETS, TK_BY } from './trinkets.js';
 
@@ -37,12 +37,12 @@ export function createUI() {
     $('fight-sub').innerHTML = `${ico('heal')} ${fortressHp(s.day)} fortress · ${onWall}/${wallSlots(s.day)} on wall`;
   }
 
-  function cardInfo(id, { inst = null, price = null, sell = null, codex = new Set(), extra = '' } = {}) {
+  function cardInfo(id, { inst = null, price = null, sell = null, codex = new Set(), extra = '', att = inst?.att || 1, bound = null } = {}) {
     const d = CARDS[id];
     const tag = d.kind === 'ingredient'
       ? 'Ingredient'
       : `${d.rare ? '<span class="rare-tag">★ Rare</span> · ' : ''}Tier ${ROMAN[d.tier]} ${d.track ? 'track unit' : 'unit'}${d.tags?.includes('creature') ? ' · creature' : ''}`;
-    const stats = d.kind === 'unit' ? cardStats(d, inst?.perm || 0, null, inst?.stars || 0).map((st) => `<span>${ico(st.k)}${esc(st.n)}</span>`).join('') : '';
+    const stats = d.kind === 'unit' ? cardStats(d, inst?.perm || 0, null, inst?.stars || 0, att).map((st) => `<span>${ico(st.k)}${esc(st.n)}</span>`).join('') : '';
     const meals = inst?.meals || 0;
     const ev = d.eats?.evolve;
     const eater = d.eats ? `<p><b>Eats</b> ${d.eats.foods.map((f) => `${ico(f)} ${esc(nameOf(f))}`).join(', ')} (drop them on it). Eaten ${meals}${ev ? `, evolves into <b>${esc(nameOf(ev[1]))}</b> at ${ev[0]}` : ''}.</p>` : '';
@@ -61,7 +61,12 @@ export function createUI() {
     const starLine = d.kind !== 'unit' ? '' : stars
       ? `<p><span class="rare">${'★'.repeat(stars)}</span> All numbers ×${starMult(d, stars)}, ${Math.round(stars * RULES.starHaste * 100)}% faster.${stars < 3 ? ' Merge another copy for more.' : ''}</p>`
       : '<p class="muted small">Drop a copy of this unit on it to add a ★ (up to ★★★).</p>';
-    return `<h3>${esc(d.name)}${stars ? ` <span class="rare">${'★'.repeat(stars)}</span>` : ''}</h3><span class="tag">${tag}</span>${right}<div class="stats">${stats}</div><p>${esc(d.text)}</p>${starLine}${perm}${extra}${recipes}`;
+    const fam = Object.keys(TRACK_FAMILY).find((k) => TRACK_FAMILY[k].has(id));
+    const shrine = TRACKS.find((t) => t.id === (att > 1 ? bound : fam))?.name;
+    const attLine = d.kind !== 'unit' || !fam ? ''
+      : att > 1 ? `<p><span class="attuned">◆ Attuned</span> to your ${esc(shrine)} shrine: numbers ×${+att.toFixed(2)}.</p>`
+      : `<p class="muted small">${esc(shrine)} family: attuned (stronger) when your shrine is bound to ${esc(shrine)}.</p>`;
+    return `<h3>${esc(d.name)}${stars ? ` <span class="rare">${'★'.repeat(stars)}</span>` : ''}</h3><span class="tag">${tag}</span>${right}<div class="stats">${stats}</div><p>${esc(d.text)}</p>${starLine}${attLine}${perm}${extra}${recipes}`;
   }
 
   // Right-click popover: what this card combines with. Partners you own are

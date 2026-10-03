@@ -626,3 +626,4 @@ button {
 }
 @keyframes co-pulse { 0%, 100% { transform: scale(0.85); opacity: 1; } 50% { transform: scale(1.15); opacity: 0.6; } }
 .dialog ul.tight li { margin-bottom: 6px; }
+#info .attuned { color: #2f7d6d; font-weight: 800; }
