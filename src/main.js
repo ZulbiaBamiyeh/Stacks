@@ -6,12 +6,12 @@ import { TRINKETS, RACK_SLOTS, TK_BY, trinketSellValue } from './trinkets.js';
 import { TRINKET_METAL } from './gfx/draw.js';
 import { createBattle, DT } from './sim.js';
 import { fetchGhost, submitGhost } from './ghosts.js';
-import { createWorld, L, CARD, wallX, arenaX, rackX } from './gfx/world.js';
+import { createWorld, L, CARD, PORTRAIT, wallX, arenaX, rackX } from './gfx/world.js';
 import { CardView, loadArt, setAnisotropy, artURL, cardImageURL } from './gfx/card.js';
 import { createFx } from './gfx/fx.js';
 import { createFortressHud } from './gfx/fortress.js';
 import * as D from './gfx/draw.js';
-import { createUI, loadCodex, saveCodex } from './ui.js';
+import { createUI, loadCodex, saveCodex, TOUCH } from './ui.js';
 import { sfx } from './audio.js';
 
 const SAVE_KEY = 'stackbrawl.run.v1';
@@ -62,7 +62,13 @@ let bv = [[], []]; // battle card views per side/slot
 const leaving = new Set(); // cards animating out (fed to the shrine, eaten)
 const later = (sec, fn) => timers.push({ t: sec, fn });
 
-const HOME = { x: 0, z: 0.15, w: 19.4, h: 13.0 };
+const HOME = L.home;
+// Frame the home board, leaving room for the top bar on short screens.
+function frameHome() {
+  const short = !PORTRAIT && window.innerHeight < 520;
+  world.frame(HOME.x, HOME.z - (short ? 0.6 : 0), HOME.w, HOME.h + (short ? 1.6 : 0));
+}
+document.documentElement.classList.toggle('portrait', PORTRAIT);
 const A = L.arena;
 
 // ------------------------------------------------------------------ fixed furniture
@@ -90,7 +96,7 @@ const rerollTile = registerTile(world.makeTile(rr.w, rr.h, D.drawTile('reroll'),
 
 let packTiles = [];
 let marketTiles = [];
-const marketPos = (i) => ({ x: L.market.xs[i % 2], z: L.market.zs[Math.floor(i / 2)] });
+const marketPos = (i) => { const n = L.market.xs.length; return { x: L.market.xs[i % n], z: L.market.zs[Math.floor(i / n)] }; };
 
 const slotDecals = [];
 const slotGlow = [];
@@ -113,7 +119,7 @@ function refreshSlots() {
   }
 }
 
-const towerPlaque = world.makeDecal(2.3, 0.56, D.drawLabel(''), L.tower.x, L.tower.z + 1.45, 0.008);
+const towerPlaque = world.makeDecal(2.3, 0.56, D.drawLabel(''), L.tower.x + L.tower.plaque[0], L.tower.z + L.tower.plaque[1], 0.008);
 let plaqueText = '';
 function refreshPlaque() {
   const t = `Fortress  ${fortressHp(S.day)} HP`;
@@ -227,7 +233,7 @@ function syncViews() {
   const palive = new Set();
   for (const p of S.packs) {
     palive.add(p.uid);
-    if (p.x == null) Object.assign(p, findSpot(-6.5, -2.2));
+    if (p.x == null) Object.assign(p, findSpot(...L.spots.pack));
     let v = packViews.get(p.uid);
     if (!v) {
       v = new CardView(scene, { pack: p.pack });
@@ -491,54 +497,123 @@ let drag = null;
 let hover = null;
 let lastPointer = { x: 0, y: 0 };
 
+// Touch: tap shows a card's info (tap a shop card or pack again to buy it),
+// long-press lists its combinations, two fingers pinch to zoom.
+const touches = new Map();
+let pinch = null;
+let selected = null; // the shop thing a first tap picked
+const LONG_PRESS = 450;
+function openCombos(card, x, y) {
+  if (!card || card.pack || !CARDS[card.id]) { ui.combos(null); return; }
+  const owned = new Set([...views.values()].map((v) => v.id));
+  ui.info(null);
+  ui.combos(card.id, { codex, owned, artURL, x, y });
+}
+
 stage.addEventListener('pointerdown', (e) => {
   if (e.button === 2) return;
   sfx.unlock();
   stage.setPointerCapture(e.pointerId);
+  if (e.pointerType === 'touch') {
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touches.size === 2) {
+      // a second finger: stop whatever the first one started and pinch instead
+      if (drag) endDrag(null);
+      clearTimeout(press?.timer);
+      press = null;
+      const [a, b] = [...touches.values()];
+      pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), zoom: view.zoom };
+      return;
+    }
+  }
   const hit = pickAt(e.clientX, e.clientY);
-  press = { x: e.clientX, y: e.clientY, id: e.pointerId, hit, button: e.button, goal: view.goal.clone() };
+  press = { x: e.clientX, y: e.clientY, id: e.pointerId, hit, button: e.button, goal: view.goal.clone(), touch: e.pointerType === 'touch' };
+  if (press.touch && hit?.card && mode === 'shop') {
+    const p = press;
+    p.timer = setTimeout(() => {
+      if (press !== p || drag || p.pan) return;
+      p.long = true;
+      navigator.vibrate?.(12);
+      openCombos(hit.card, p.x, p.y);
+    }, LONG_PRESS);
+  }
 });
 
 stage.addEventListener('pointermove', (e) => {
   lastPointer = { x: e.clientX, y: e.clientY };
+  if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch) {
+    if (touches.size < 2) return;
+    const [a, b] = [...touches.values()];
+    view.zoom = THREE.MathUtils.clamp(pinch.zoom * pinch.d / Math.max(20, Math.hypot(a.x - b.x, a.y - b.y)), 0.45, 1.35);
+    return;
+  }
   if (drag) { moveDrag(e); return; }
   if (press) {
-    const moved = Math.hypot(e.clientX - press.x, e.clientY - press.y) > 6;
+    if (press.long) return;
+    const moved = Math.hypot(e.clientX - press.x, e.clientY - press.y) > (press.touch ? 10 : 6);
     if (!moved) return;
+    clearTimeout(press.timer);
     const card = press.hit?.card;
     if (card && press.button === 0 && canDrag(card)) { startDrag(card, e); return; }
     if (!press.pan) press.pan = true;
     pan(e);
     return;
   }
-  updateHover(e.clientX, e.clientY);
+  if (e.pointerType !== 'touch') updateHover(e.clientX, e.clientY);
 });
 
 stage.addEventListener('pointerup', (e) => {
+  touches.delete(e.pointerId);
+  if (pinch) { if (!touches.size) pinch = null; return; }
+  clearTimeout(press?.timer);
   if (drag) { endDrag(e); press = null; return; }
-  if (press && !press.pan) {
+  if (press && !press.pan && !press.long) {
     const hit = press.hit;
-    if (hit?.card) clickCard(hit.card);
+    if (press.touch) tap(hit, press.x, press.y);
+    else if (hit?.card) clickCard(hit.card);
     else if (hit?.tile) clickTile(hit.tile);
   }
   press = null;
   stage.className = '';
 });
-stage.addEventListener('pointercancel', () => { if (drag) endDrag(null); press = null; });
+stage.addEventListener('pointercancel', (e) => {
+  touches.delete(e.pointerId);
+  if (!touches.size) pinch = null;
+  clearTimeout(press?.timer);
+  if (drag) endDrag(null);
+  press = null;
+});
 stage.addEventListener('contextmenu', (e) => {
   e.preventDefault();
-  const card = pickAt(e.clientX, e.clientY)?.card;
-  if (!card || card.pack || !CARDS[card.id]) { ui.combos(null); return; }
-  const owned = new Set([...views.values()].map((v) => v.id));
-  ui.info(null);
-  ui.combos(card.id, { codex, owned, artURL, x: e.clientX, y: e.clientY });
+  if (e.pointerType === 'touch' || touches.size) return; // long-press handles touch
+  openCombos(pickAt(e.clientX, e.clientY)?.card, e.clientX, e.clientY);
 });
+
+// A tap: buying things takes a second tap on the same thing, so the first can
+// show what it is. Your own cards and the reroll act at once.
+function tap(hit, x, y) {
+  const thing = hit?.card || hit?.tile || null;
+  const costly = mode === 'shop' && ((hit?.card && hit.card.market != null) || hit?.tile?.kind === 'pack');
+  if (costly && selected === thing) {
+    selected = null;
+    ui.info(null);
+    if (hit.card) clickCard(hit.card); else clickTile(hit.tile);
+    return;
+  }
+  selected = costly ? thing : null;
+  if (hit?.tile?.kind === 'reroll' || hit?.card?.pack) { ui.info(null); hit.card ? clickCard(hit.card) : clickTile(hit.tile); return; }
+  if (hit?.card && !costly) hit.card.kick(0.08);
+  // keep the panel off what was tapped
+  $('info').classList.toggle('at-top', PORTRAIT && y > window.innerHeight * 0.55);
+  updateHover(x, y, costly ? '<p class="tap-again">Tap again to buy</p>' : '');
+}
 // Any other click or Escape closes the combine popover.
 const closeCombos = () => { ui.combos(null); ui.preview(null); };
 window.addEventListener('pointerdown', (e) => { if (e.button !== 2 && !e.target.closest?.('#combos')) closeCombos(); }, true);
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeCombos(); });
 // Hovering a row in the popover previews the card it makes.
-$('combos').addEventListener('mouseover', (e) => {
+function previewComboRow(e) {
   const row = e.target.closest('.cb-row');
   if (!row) return;
   const id = row.dataset.result;
@@ -548,7 +623,10 @@ $('combos').addEventListener('mouseover', (e) => {
   const rr = row.getBoundingClientRect();
   const side = box.right + 300 > window.innerWidth ? 'left' : 'right';
   ui.preview({ key: `c:${id}`, id, img: cardImageURL(id), label: row.dataset.known === '1' ? 'Combines into' : 'Combines into <span class="muted">(undiscovered)</span>', note }, side === 'left' ? box.left : box.right - 14, rr.top + rr.height / 2, { side });
-});
+}
+$('combos').addEventListener('mouseover', previewComboRow);
+// touch has no hover: tapping a row previews it
+$('combos').addEventListener('click', previewComboRow);
 $('combos').addEventListener('mouseleave', () => ui.preview(null));
 
 stage.addEventListener('wheel', (e) => {
@@ -558,7 +636,7 @@ stage.addEventListener('wheel', (e) => {
 
 stage.addEventListener('dblclick', () => {
   view.zoom = 1;
-  if (mode === 'shop') world.frame(HOME.x, HOME.z, HOME.w, HOME.h);
+  if (mode === 'shop') frameHome();
 });
 
 function pan(e) {
@@ -569,7 +647,8 @@ function pan(e) {
   view.goal.set(press.goal.x - dx, 0, press.goal.z - dz);
   const cz = mode === 'shop' ? HOME.z : A.cz;
   view.goal.x = THREE.MathUtils.clamp(view.goal.x, -10, 10);
-  view.goal.z = THREE.MathUtils.clamp(view.goal.z, cz - 8, cz + 8);
+  const span = mode === 'shop' ? Math.max(8, HOME.h / 2) : 8;
+  view.goal.z = THREE.MathUtils.clamp(view.goal.z, cz - span, cz + span);
   stage.className = 'grabbing';
 }
 
@@ -598,25 +677,26 @@ function shrineInfo() {
   return `<h3>Shrine</h3><p>Drop ingredients (or whole bundles) here. ${TRACK_STEPS[0]} opens a track's first pack. ${TRACK_STEPS[1]} opens its second and hands you the track's rare.</p><div class="shr-list">${rows}</div>${note}`;
 }
 
-function updateHover(cx, cy) {
+function updateHover(cx, cy, suffix = '') {
+  const info = (h) => ui.info(h && suffix ? h + suffix : h);
   const hit = pickAt(cx, cy);
   const card = hit?.card || null;
   const tile = hit?.tile || null;
   hover = card || tile;
   stage.className = card || tile ? 'point' : '';
   if (card) {
-    if (card.trinket || card.enemyTrinket) ui.info(ui.trinketInfo(card.id, { sell: card.trinket && mode === 'shop' ? trinketSellValue(card.trinket) : null }));
-    else if (card.enemy || card.summoned) ui.info(ui.cardInfo(card.id, { inst: { perm: card.perm, stars: card.stars || 0, att: card.att || 1 }, codex }));
-    else if (card.pack) ui.info(ui.packInfo(card.pack, { price: false }));
-    else if (card.market != null) ui.info(ui.cardInfo(card.id, { price: S.shop[card.market]?.price, codex, att: R.attuneOf(S, card.id), bound: S.bound }));
-    else ui.info(ui.cardInfo(card.id, { inst: card.inst, sell: card.inst && mode === 'shop' ? R.sellPrice(S, card.inst) : null, codex, extra: bundleNote(card), att: R.attuneOf(S, card.id), bound: S.bound }));
+    if (card.trinket || card.enemyTrinket) info(ui.trinketInfo(card.id, { sell: card.trinket && mode === 'shop' ? trinketSellValue(card.trinket) : null }));
+    else if (card.enemy || card.summoned) info(ui.cardInfo(card.id, { inst: { perm: card.perm, stars: card.stars || 0, att: card.att || 1 }, codex }));
+    else if (card.pack) info(ui.packInfo(card.pack, { price: false }));
+    else if (card.market != null) info(ui.cardInfo(card.id, { price: S.shop[card.market]?.price, codex, att: R.attuneOf(S, card.id), bound: S.bound }));
+    else info(ui.cardInfo(card.id, { inst: card.inst, sell: card.inst && mode === 'shop' ? R.sellPrice(S, card.inst) : null, codex, extra: bundleNote(card), att: R.attuneOf(S, card.id), bound: S.bound }));
   } else if (tile) {
-    if (tile.kind === 'pack') ui.info(ui.packInfo(tile.pack));
-    else if (tile.kind === 'sell') ui.info('<h3>Sell</h3><p>Drop a card here for gold: 1 per tier (ingredients sell for 1).</p>');
-    else if (tile.kind === 'shrine') ui.info(shrineInfo());
-    else if (tile.kind === 'reroll') ui.info('<h3>Reroll</h3><p>New market singles for 1 gold.</p>');
-    else if (tile.kind === 'single') ui.info('<h3>Market</h3><p>Sold out. Restocks tomorrow or on reroll.</p>');
-  } else ui.info(null);
+    if (tile.kind === 'pack') info(ui.packInfo(tile.pack));
+    else if (tile.kind === 'sell') info('<h3>Sell</h3><p>Drop a card here for gold: 1 per tier (ingredients sell for 1).</p>');
+    else if (tile.kind === 'shrine') info(shrineInfo());
+    else if (tile.kind === 'reroll') info('<h3>Reroll</h3><p>New market singles for 1 gold.</p>');
+    else if (tile.kind === 'single') info('<h3>Market</h3><p>Sold out. Restocks tomorrow or on reroll.</p>');
+  } else info(null);
 }
 
 function startDrag(card, e) {
@@ -625,6 +705,8 @@ function startDrag(card, e) {
   drag.offset = g ? { x: card.pos.x - g.x, z: card.pos.z - g.z } : { x: 0, z: 0 };
   drag.offset.x *= 0.5;
   drag.offset.z *= 0.5;
+  // a finger covers what it holds: carry the card above it instead
+  if (e.pointerType === 'touch') drag.offset = { x: 0, z: -1.15 };
   card.dragging = true;
   card.raise();
   hover = null;
@@ -652,8 +734,12 @@ function moveDrag(e) {
   shrineTile.hover = d.kind === 'feed' ? 1 : 0;
   const [html, bad] = dropHint(d, card);
   if (html !== lastHint) lastHint = html;
-  ui.hint(html, e.clientX, e.clientY - 30, bad);
-  ui.preview(dropPreview(d), e.clientX, e.clientY, { avoid: $('hint') });
+  const lift = e.pointerType === 'touch' ? 110 : 30;
+  ui.hint(html, e.clientX, e.clientY - lift, bad);
+  const corner = e.pointerType === 'touch'
+    ? (e.clientY > window.innerHeight / 2 ? 't' : 'b') + (e.clientX > window.innerWidth / 2 ? 'l' : 'r')
+    : null;
+  ui.preview(dropPreview(d), e.clientX, e.clientY, { avoid: $('hint'), corner });
 }
 
 // The card a drop would produce: a combine's result, or the eater after its meal.
@@ -873,7 +959,7 @@ function endDrag() {
 }
 
 function inMarket(x, z) {
-  return x > L.table.x1 - 0.1 && z < L.market.reroll.z + 0.8;
+  return x > L.market.zone.x0 && z < L.market.zone.z1;
 }
 
 function returnToMarket(card) {
@@ -913,7 +999,7 @@ function buyPack(tile) {
   const res = R.buyPack(S, tile.pack);
   if (!res.ok) { ui.toast(res.reason, 'bad'); sfx.deny(); tile.group.userData.shake = 0.3; return; }
   sfx.coin();
-  const spot = findSpot(-6.5 + packViews.size * 1.4, -2.2);
+  const spot = findSpot(L.spots.pack[0] + packViews.size * 1.4, L.spots.pack[1]);
   Object.assign(res.pack, spot);
   const v = new CardView(scene, { pack: res.pack.pack });
   v.packRef = res.pack;
@@ -959,7 +1045,7 @@ function buyMarket(v) {
   v.restLift = 0;
   v.inst = res.inst;
   views.set(res.inst.uid, v);
-  const spot = findSpot(3.8, 0);
+  const spot = findSpot(...L.spots.loot);
   Object.assign(res.inst, spot);
   v.flyTo(spot.x, spot.z, { dur: 0.5, arc: 1.6 });
   refreshShopTiles.mkey = null;
@@ -1122,7 +1208,10 @@ async function startFight() {
     bv[1][i] = v;
   }
   // Trinkets sit beside each wall in the arena.
-  const tkPos = (i, z) => ({ x: 5.35 + (i % 3) * 1.05, z: z + (i < 3 ? -0.62 : 0.62) });
+  // Trinkets sit beside each wall, or (on a tall screen) in a row past each health bar.
+  const tkPos = PORTRAIT
+    ? (i, z) => ({ x: -2.1 + i * 1.05, z: z < A.cz ? A.enemyTowerZ - 1.75 : A.playerTowerZ + 1.75 })
+    : (i, z) => ({ x: 5.35 + (i % 3) * 1.05, z: z + (i < 3 ? -0.62 : 0.62) });
   let ti = 0;
   for (const v of trinketViews.values()) {
     const p = tkPos(ti++, A.playerZ);
@@ -1144,7 +1233,7 @@ async function startFight() {
   fortFx[1].reset();
   fortHud[0].reset(snap.hp);
   fortHud[1].reset(ghost.hp);
-  world.frame(0, A.cz - 0.15, 19.4, 13.6);
+  world.frame(0, A.cz - 0.15, A.frame.w, A.frame.h);
   view.zoom = 1;
   ui.battleStart(snap, ghost);
   ui.setSpeed(speed);
@@ -1380,6 +1469,7 @@ function returnTrinkets(animate) {
 const lastTk = [null, null];
 
 function closeBattle() {
+  if (relayout) { save(); location.reload(); return; }
   ui.modal(null);
   ui.hideBanner();
   ui.battleEnd();
@@ -1396,7 +1486,7 @@ function closeBattle() {
   returnTrinkets(true);
   bv = [[], []];
   B = null;
-  world.frame(HOME.x, HOME.z, HOME.w, HOME.h);
+  frameHome();
   view.zoom = 1;
   if (result.over) {
     later(0.9, showRunOver);
@@ -1461,9 +1551,9 @@ function newRun() {
   slotsShown = -1;
   mode = 'shop';
   $('fight-box').hidden = false;
-  world.frame(HOME.x, HOME.z, HOME.w, HOME.h);
+  frameHome();
   refresh();
-  ui.banner('Day 1<small>click your free pack to open it</small>');
+  ui.banner(`Day 1<small>${TOUCH ? 'tap' : 'click'} your free pack to open it</small>`);
 }
 
 // ------------------------------------------------------------------ chrome buttons
@@ -1496,9 +1586,33 @@ window.addEventListener('keydown', (e) => {
 
 // ------------------------------------------------------------------ frame loop
 
-window.addEventListener('resize', () => world.resize());
+// Rotating the phone swaps between the wide and tall boards. The run is saved,
+// so reload into the other layout (after the fight, if one is running).
+const wantPortrait = () => window.innerHeight > window.innerWidth * 1.1;
+let relayout = false;
+function checkLayout() {
+  if (wantPortrait() === PORTRAIT) { relayout = false; return; }
+  if (mode === 'shop' || mode === 'over') { save(); location.reload(); } else relayout = true;
+}
+window.addEventListener('resize', () => { world.resize(); checkLayout(); if (mode === 'shop') frameHome(); });
+// Cards saved from the other layout may sit off this table: find them a place.
+{
+  const off = (p) => p.x == null || p.x < T.x0 || p.x > T.x1 || p.z < T.z0 || p.z > T.z1;
+  const lost = [...S.table, ...S.packs].filter(off);
+  for (const p of lost) p.x = p.z = null;
+  for (const p of lost) Object.assign(p, findSpot(...L.spots.pack));
+}
 world.resize();
-world.frame(HOME.x, HOME.z, HOME.w, HOME.h);
+frameHome();
+// Phones on their side get a smaller board: suggest upright, once.
+if (TOUCH && !PORTRAIT && window.innerHeight < 520) {
+  try {
+    if (!localStorage.getItem('stackbrawl.uprightTip')) {
+      localStorage.setItem('stackbrawl.uprightTip', '1');
+      later(2, () => ui.toast('Tip: hold your phone upright for bigger cards', 'good'));
+    }
+  } catch { /* storage blocked */ }
+}
 view.target.copy(view.goal);
 view.dist = view.goalDist;
 refresh();
@@ -1564,7 +1678,7 @@ const tutDone = () => { try { return localStorage.getItem(TUT_KEY) === 'done'; }
 const scr = (x, z) => world.toScreen(new THREE.Vector3(x, 0, z));
 const viewOf = (pred) => [...views.values()].find((v) => !v.dead && v.def && pred(v));
 const TUT = [
-  { key: 'open', text: 'Click your <b>pack</b> to open it.', at: () => { const v = [...packViews.values()][0]; return v && scr(v.pos.x, v.pos.z); }, done: () => !S.packs.length || (S.table.some((c) => c.id === 'villager') && S.table.some((c) => c.id === 'wood')) },
+  { key: 'open', text: `${TOUCH ? 'Tap' : 'Click'} your <b>pack</b> to open it.`, at: () => { const v = [...packViews.values()][0]; return v && scr(v.pos.x, v.pos.z); }, done: () => !S.packs.length || (S.table.some((c) => c.id === 'villager') && S.table.some((c) => c.id === 'wood')) },
   { key: 'combine', text: 'Drag the <b>Villager</b> onto the <b>Wood</b> to combine them.', at: () => { const v = viewOf((w) => w.id === 'villager'); return v && scr(v.pos.x, v.pos.z); }, done: () => S.discovered.length > 0 || owned().some((c) => CARDS[c.id].kind === 'unit' && CARDS[c.id].tier >= 2) },
   { key: 'wall', text: 'Drag your unit onto the <b>wall</b>. Only units on the wall fight.', at: () => scr(wallX(0), L.wall.z), done: () => S.wall.some(Boolean) },
   { key: 'shop', text: 'Each day you earn gold. Spend it on <b>packs</b> up here to grow your army.', at: () => { const t = packTiles[0]; return t && scr(t.group.position.x, t.group.position.z); }, next: true },
@@ -1596,7 +1710,7 @@ if (!S.history.length && S.day === 1 && !tutDone()) {
   const el = ui.intro();
   el.querySelector('[data-start-tut]').addEventListener('click', () => { ui.modal(null); tut = 0; });
   el.querySelector('[data-skip-tut]').addEventListener('click', () => { ui.modal(null); endTutorial(); });
-} else if (!S.history.length && S.day === 1 && S.packs.length) ui.banner('Day 1<small>click your free pack to open it</small>');
+} else if (!S.history.length && S.day === 1 && S.packs.length) ui.banner(`Day 1<small>${TOUCH ? 'tap' : 'click'} your free pack to open it</small>`);
 
 // Debug handle for the console.
 window.stackbrawl = { get state() { return S; }, get battle() { return B; }, views, world, R, refresh, fortHud };

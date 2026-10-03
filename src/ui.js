@@ -4,6 +4,9 @@ import { CARDS, PACKS, RECIPES, RULES, TRACKS, TRACK_FAMILY, fortressHp, wallSlo
 import { iconURL, ROMAN, cardStats, TRINKET_METAL } from './gfx/draw.js';
 import { TRINKETS, TK_BY } from './trinkets.js';
 
+// Phones and tablets: taps instead of clicks, no hover.
+export const TOUCH = typeof matchMedia !== 'undefined' && matchMedia('(hover: none) and (pointer: coarse)').matches;
+
 const $ = (id) => document.getElementById(id);
 const ico = (name) => `<i class="ico" style="background-image:url(${iconURL(name)})"></i>`;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -106,7 +109,9 @@ export function createUI() {
   }
 
   // Floating card preview: what a combine or a meal turns into.
-  function preview(p, x = 0, y = 0, { side = 'right', avoid = null } = {}) {
+  // corner: 'tl' | 'tr' | 'bl' | 'br' pins it to a screen corner (touch drags,
+  // where anything near the finger would be hidden under it).
+  function preview(p, x = 0, y = 0, { side = 'right', avoid = null, corner = null } = {}) {
     const el = $('preview');
     if (!p) { el.hidden = true; el.dataset.key = ''; return; }
     if (el.dataset.key !== p.key) {
@@ -124,6 +129,11 @@ export function createUI() {
     const r = el.getBoundingClientRect();
     let left = side === 'left' ? x - r.width - 18 : x + 26;
     let top = y - r.height / 2;
+    if (corner) {
+      left = corner[1] === 'l' ? 8 : window.innerWidth - r.width - 8;
+      top = corner[0] === 't' ? 64 : window.innerHeight - r.height - 64;
+      avoid = null;
+    }
     // keep clear of the drag hint: sit to its right, or below it
     const a = avoid && !avoid.hidden ? avoid.getBoundingClientRect() : null;
     if (a) {
@@ -145,7 +155,7 @@ export function createUI() {
     const p = PACKS[packId];
     const total = p.pool.reduce((a, [, w]) => a + w, 0);
     const lines = p.pool.map(([id, w]) => `<div>${esc(nameOf(id))} <span class="muted">${Math.round((w / total) * 100)}%</span></div>`).join('');
-    return `<h3>${esc(p.name)}</h3><span class="tag">${p.size} cards${p.rare ? ` · 10% ${esc(nameOf(p.rare))}` : ''}</span>${price ? `<span class="sell">${ico('coin')} ${p.price}</span>` : ''}<p>${price ? 'Click to buy. Click the pack on the table to open it.' : 'Click to pop out a card.'}</p><div class="recipes">${lines}</div>`;
+    return `<h3>${esc(p.name)}</h3><span class="tag">${p.size} cards${p.rare ? ` · 10% ${esc(nameOf(p.rare))}` : ''}</span>${price ? `<span class="sell">${ico('coin')} ${p.price}</span>` : ''}<p>${price ? `${TOUCH ? 'Tap' : 'Click'} to buy. ${TOUCH ? 'Tap' : 'Click'} the pack on the table to open it.` : `${TOUCH ? 'Tap' : 'Click'} to pop out a card.`}</p><div class="recipes">${lines}</div>`;
   }
 
   function info(html) {
@@ -386,11 +396,11 @@ export function createUI() {
     return modal(`
       <h2>How to play</h2>
       <ul class="tight">
-        <li><b>Packs</b> cost gold; click one on the table to open it. Saving earns interest: +1 per 10 gold held, up to +3.</li>
+        <li><b>Packs</b> cost gold; ${TOUCH ? 'tap' : 'click'} one on the table to open it. Saving earns interest: +1 per 10 gold held, up to +3.</li>
         <li><b>Combine</b> by dragging a card onto another.</li>
         <li><b>Wall</b> units fight. Press <b>Fight!</b> when ready.</li>
         <li>Stack the same resource and drop it on the <b>rack</b> for a trinket. Feed the <b>shrine</b> to open a themed track.</li>
-        <li>Hover or right-click anything for details.</li>
+        <li>${TOUCH ? 'Tap anything for details, long-press a card to see what it combines with. Pinch to zoom.' : 'Hover or right-click anything for details.'}</li>
       </ul>
       <div class="actions"><button class="big-btn" data-close>Got it</button></div>`);
   }

@@ -627,3 +627,45 @@ button {
 @keyframes co-pulse { 0%, 100% { transform: scale(0.85); opacity: 1; } 50% { transform: scale(1.15); opacity: 0.6; } }
 .dialog ul.tight li { margin-bottom: 6px; }
 #info .attuned { color: #2f7d6d; font-weight: 800; }
+
+/* ---------------------------------------------------------------- phones */
+
+.tap-again { margin: 6px 0 0; font-weight: 900; color: #b4532f; }
+
+/* Tall board (phone held upright) */
+.portrait #hud { top: 8px; left: 8px; right: 8px; gap: 6px; }
+.portrait .chip { font-size: 14px; padding: 5px 10px; border-radius: 10px; }
+.portrait .chip.record { padding: 5px 9px; }
+.portrait #fight-box { right: 10px; bottom: 10px; flex-direction: row; align-items: center; gap: 8px; }
+.portrait .fight-sub { font-size: 12px; padding: 4px 8px; }
+.portrait #btn-fight { font-size: 22px; padding: 6px 20px 8px; border-width: 3px; border-radius: 14px; box-shadow: 0 4px 0 var(--ink); }
+.portrait #info {
+  left: 8px; right: 8px; width: auto; top: auto; bottom: 70px;
+  max-height: 46vh; overflow-y: auto; pointer-events: auto;
+  font-size: 13.5px; padding: 10px 12px;
+}
+.portrait #info h3 { font-size: 18px; }
+.portrait .battle-ctl { left: 8px; right: 8px; bottom: 8px; gap: 6px; justify-content: center; }
+.portrait #combos { width: min(300px, calc(100vw - 20px)); }
+.portrait #preview { width: 170px; }
+
+/* Short landscape (phone on its side) */
+@media (max-height: 520px) {
+  #hud { top: 6px; left: 8px; right: 8px; gap: 6px; }
+  .chip { font-size: 13px; padding: 4px 9px; border-radius: 9px; }
+  .brand, #btn-help { display: none; }
+  #fight-box { right: 8px; bottom: 8px; gap: 4px; }
+  .fight-sub { font-size: 11.5px; padding: 3px 8px; }
+  #btn-fight { font-size: 19px; padding: 5px 16px 6px; border-width: 3px; border-radius: 12px; box-shadow: 0 4px 0 var(--ink); }
+  #info {
+    left: 8px; bottom: 8px; width: 270px; max-height: calc(100vh - 56px); overflow-y: auto;
+    font-size: 12.5px; padding: 9px 11px; pointer-events: auto;
+  }
+  #info h3 { font-size: 17px; }
+  .battle-ctl { bottom: 6px; gap: 4px; }
+  .battle-ctl .chip { font-size: 12px; }
+  #combos { max-height: calc(100vh - 20px); }
+}
+.portrait #preview.multi { width: calc(100vw - 16px); }
+@media (max-height: 520px) { #preview { width: 160px; } #preview.multi { width: 400px; } }
+.portrait #info.at-top { top: 92px; bottom: auto; }

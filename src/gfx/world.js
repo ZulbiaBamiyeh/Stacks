@@ -4,8 +4,13 @@ import * as D from './draw.js';
 
 export const CARD = { w: 1.1, h: 1.5, t: 0.04, r: 0.1 };
 
-export const L = {
+// Phones held upright get a tall board (picked once at load; rotating
+// the phone reloads into the other layout between fights).
+export const PORTRAIT = typeof window !== 'undefined' && window.innerHeight > window.innerWidth * 1.1;
+
+const WIDE = {
   board: { x0: -9.3, x1: 9.3, z0: -6.15, z1: 6.15 },
+  home: { x: 0, z: 0.15, w: 19.4, h: 13.0 },
   shopZ: -4.8,
   tile: { w: 1.3, h: 1.74 },
   sellX: -8.15,
@@ -13,14 +18,38 @@ export const L = {
   packX1: 3.9,
   packStep: 1.45,
   shrine: { x: 6.95, z: -4.8, w: 3.0, h: 1.9 },
-  market: { xs: [6.2, 7.7], zs: [-2.55, -0.55, 1.45], w: 1.38, h: 1.9, reroll: { x: 6.95, z: 3.15, w: 3.0, h: 1.0 } },
+  market: { xs: [6.2, 7.7], zs: [-2.55, -0.55, 1.45], w: 1.38, h: 1.9, zone: { x0: 5.15, z1: 3.95 }, reroll: { x: 6.95, z: 3.15, w: 3.0, h: 1.0 } },
   table: { x0: -8.9, x1: 5.25, z0: -1.55, z1: 3.05 },
+  // where opened packs and new cards land on the table
+  spots: { pack: [-6.5, -2.2], loot: [3.8, 0] },
   // trinket rack: five card slots on a velvet shelf under the pack row
   rack: { z: -2.72, x0: -3.45, step: 1.45, n: 5, band: { x0: -4.35, x1: 3.25, z0: -3.72, z1: -1.72 } },
   wall: { z: 4.6, x0: -4.3, step: 1.5, band: { x0: -5.4, x1: 4.3, z0: 3.45, z1: 5.8 } },
-  tower: { x: -7.4, z: 4.35 },
-  arena: { cz: -20, z0: -26.15, z1: -13.85, enemyZ: -22.45, playerZ: -17.55, enemyTowerZ: -24.55, playerTowerZ: -15.35, x0: -3.75 },
+  tower: { x: -7.4, z: 4.35, plaque: [0, 1.45] },
+  arena: { cz: -20, z0: -26.15, z1: -13.85, enemyZ: -22.45, playerZ: -17.55, enemyTowerZ: -24.55, playerTowerZ: -15.35, x0: -3.75, frame: { w: 19.4, h: 13.6 } },
 };
+
+const TALL = {
+  board: { x0: -5.3, x1: 5.3, z0: -10.3, z1: 10.3 },
+  home: { x: 0, z: 0.35, w: 10.9, h: 21.2 },
+  shopZ: -9.0,
+  tile: { w: 1.3, h: 1.74 },
+  sellX: -4.4,
+  packX0: -2.85,
+  packX1: 4.45,
+  packStep: 1.45,
+  shrine: { x: -3.6, z: -6.8, w: 3.0, h: 1.9 },
+  market: { xs: [-1.2, 0.25, 1.7, 3.15], zs: [-6.8, -4.85], w: 1.38, h: 1.9, zone: { x0: -2.0, z1: -3.8 }, reroll: { x: -3.6, z: -5.2, w: 3.0, h: 1.0 } },
+  table: { x0: -5.05, x1: 5.05, z0: -1.45, z1: 5.15 },
+  spots: { pack: [-3.6, -0.5], loot: [2.6, 1.5] },
+  rack: { z: -2.6, x0: -2.9, step: 1.45, n: 5, band: { x0: -3.8, x1: 3.8, z0: -3.6, z1: -1.6 } },
+  wall: { z: 6.7, x0: -3.75, step: 1.5, band: { x0: -4.85, x1: 4.85, z0: 5.55, z1: 7.9 } },
+  tower: { x: -3.7, z: 9.05, plaque: [2.75, 0.05] },
+  // further from the home board, so a tall screen's view of it stays clear
+  arena: { cz: -24.5, z0: -32.1, z1: -16.9, enemyZ: -26.95, playerZ: -22.05, enemyTowerZ: -29.05, playerTowerZ: -19.85, x0: -3.75, frame: { w: 10.9, h: 16.4 } },
+};
+
+export const L = PORTRAIT ? TALL : WIDE;
 export const wallX = (i) => L.wall.x0 + i * L.wall.step;
 export const arenaX = (i) => L.arena.x0 + i * L.wall.step;
 export const rackX = (i) => L.rack.x0 + i * L.rack.step;
@@ -297,6 +326,7 @@ export function createWorld(container) {
   const arenaEnemyTower = makeTower(-7.7, A.enemyZ, '#6f6ba6', '#e9e3d0');
   arenaPlayerTower.scale.setScalar(0.9);
   arenaEnemyTower.scale.setScalar(0.9);
+  arenaPlayerTower.visible = arenaEnemyTower.visible = !PORTRAIT;
 
   // Wall band + parapet
   const band = L.wall.band;
@@ -314,9 +344,11 @@ export function createWorld(container) {
     scene.add(m);
   }
   // connecting wall from tower to band
-  const link = outlined(new THREE.BoxGeometry(band.x0 - L.tower.x - 0.7, 0.45, 0.6), '#d8d0bb', 1.04);
-  link.position.set((band.x0 + L.tower.x + 0.7) / 2 - 0.05, 0.22, L.tower.z);
-  scene.add(link);
+  if (!PORTRAIT) {
+    const link = outlined(new THREE.BoxGeometry(band.x0 - L.tower.x - 0.7, 0.45, 0.6), '#d8d0bb', 1.04);
+    link.position.set((band.x0 + L.tower.x + 0.7) / 2 - 0.05, 0.22, L.tower.z);
+    scene.add(link);
+  }
 
   // Trinket rack
   {
@@ -404,7 +436,7 @@ export function createWorld(container) {
     const vfov = THREE.MathUtils.degToRad(camera.fov);
     const tanV = Math.tan(vfov / 2);
     // Portrait screens crop the sides (pan to see them) so cards stay readable.
-    const fw = camera.aspect < 1 ? w * Math.max(0.55, camera.aspect) : w;
+    const fw = camera.aspect < 1 && !PORTRAIT ? w * Math.max(0.55, camera.aspect) : w;
     const dH = (h / 2) / tanV;
     const dW = (fw / 2) / (tanV * camera.aspect);
     return Math.max(dH, dW) * 1.02;
